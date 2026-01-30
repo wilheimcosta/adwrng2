@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Cyberpunk Base Colors */
+    --background: 240 10% 8%;
+    --foreground: 180 100% 95%;
+
+    /* Neon Accent Colors */
+    --neon-cyan: 180 100% 50%;
+    --neon-magenta: 300 100% 50%;
+    --neon-green: 150 100% 50%;
+    --neon-purple: 270 100% 60%;
+    --neon-blue: 210 100% 50%;
+
+    /* Card & Surface */
+    --card: 240 8% 12%;
+    --card-foreground: 180 100% 95%;
+    --card-glow: 180 100% 50% / 0.1;
+
+    --popover: 240 10% 10%;
+    --popover-foreground: 180 100% 95%;
+
+    /* Primary - Neon Cyan */
+    --primary: 180 100% 50%;
+    --primary-foreground: 240 10% 8%;
+    --primary-glow: 180 100% 50% / 0.3;
+
+    /* Secondary - Neon Magenta */
+    --secondary: 300 100% 50%;
+    --secondary-foreground: 240 10% 8%;
+    --secondary-glow: 300 100% 50% / 0.3;
+
+    /* Muted */
+    --muted: 240 8% 18%;
+    --muted-foreground: 180 20% 65%;
+
+    /* Accent - Neon Green */
+    --accent: 150 100% 50%;
+    --accent-foreground: 240 10% 8%;
+    --accent-glow: 150 100% 50% / 0.3;
+
+    /* Destructive */
+    --destructive: 0 100% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders & Inputs */
+    --border: 240 20% 20%;
+    --border-glow: 180 100% 50% / 0.2;
+    --input: 240 8% 18%;
+    --ring: 180 100% 50%;
+
+    --radius: 0.75rem;
+
+    /* Aurora Gradients */
+    --gradient-aurora: linear-gradient(135deg, hsl(270 100% 60% / 0.2), hsl(180 100% 50% / 0.2), hsl(300 100% 50% / 0.2));
+    --gradient-primary: linear-gradient(135deg, hsl(180 100% 50%), hsl(210 100% 50%));
+    --gradient-secondary: linear-gradient(135deg, hsl(300 100% 50%), hsl(270 100% 60%));
+
+    /* Glassmorphism */
+    --glass-bg: 240 8% 12% / 0.6;
+    --glass-border: 180 100% 50% / 0.2;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark mode uses same cyberpunk theme with slightly adjusted values */
+    --background: 240 12% 6%;
+    --card: 240 10% 10%;
+    --muted: 240 8% 15%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background: linear-gradient(135deg, hsl(var(--background)), hsl(240 10% 10%));
+    background-attachment: fixed;
+  }
+
+  /* Cyberpunk Utility Classes */
+  .glass-panel {
+    @apply bg-card/60 backdrop-blur-xl border border-primary/20;
+    box-shadow: 0 0 20px hsl(var(--primary-glow)),
+                inset 0 0 20px hsl(var(--card-glow));
+  }
+
+  .neon-border {
+    @apply border-primary/50;
+    box-shadow: 0 0 10px hsl(var(--primary-glow)),
+                inset 0 0 10px hsl(var(--primary-glow));
+  }
+
+  .glow-text {
+    text-shadow: 0 0 10px hsl(var(--primary)),
+                 0 0 20px hsl(var(--primary-glow)),
+                 0 0 30px hsl(var(--primary-glow));
+  }
+
+  .hover-glow {
+    transition: all 0.3s ease;
+  }
+
+  .hover-glow:hover {
+    box-shadow: 0 0 20px hsl(var(--primary-glow)),
+                0 0 30px hsl(var(--primary-glow));
+    transform: translateY(-2px);
+  }
+
+  /* Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary/50 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/70;
+  }
+}
