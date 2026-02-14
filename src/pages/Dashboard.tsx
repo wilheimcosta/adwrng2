@@ -1,333 +1,439 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, BellRing, CheckCircle2, Edit3, MapPin, Radar, Volume2, VolumeX } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
-import { FlightRuleBadge } from "@/components/FlightRuleBadge";
-import { AlertCircle, MapPin, Clock, TrendingUp } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Skeleton } from "@/components/ui/skeleton";
-import { registerAerodromeWarningsForIcao } from "@/lib/alerting";
-import { expireOutOfWindowActiveAlerts, isAlertInForce } from "@/lib/alerts-validity";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { fetchRedemetAlerts, isAerodromeWarning, type RedemetAlert } from "@/lib/redemet";
 
-const DEFAULT_INTERVAL_SECONDS = 300;
+const ICAO = "SBMQ";
+const CHECK_INTERVAL_SECONDS = 300;
+const CIRCLE_RADIUS = 14;
+const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
+
+type DashboardAlert = RedemetAlert & {
+  mens?: string;
+  validade_inicial?: string;
+  validade_final?: string;
+};
+
+function getAlertMessage(alert: DashboardAlert): string {
+  return String(alert.mensagem ?? alert.mens ?? "Sem mensagem");
+}
+
+function formatUtcClock(date: Date): string {
+  const h = date.getUTCHours().toString().padStart(2, "0");
+  const m = date.getUTCMinutes().toString().padStart(2, "0");
+  const s = date.getUTCSeconds().toString().padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
+
+function formatUtcDate(dateStr: unknown): string {
+  if (!dateStr) return "--";
+  const raw = String(dateStr);
+  const normalized = raw.includes("Z") ? raw : `${raw.replace(" ", "T")}Z`;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return "--";
+
+  const day = d.getUTCDate().toString().padStart(2, "0");
+  const mon = (d.getUTCMonth() + 1).toString().padStart(2, "0");
+  const ho = d.getUTCHours().toString().padStart(2, "0");
+  const mi = d.getUTCMinutes().toString().padStart(2, "0");
+  return `${day}/${mon} ${ho}:${mi}`;
+}
 
 export default function Dashboard() {
-  const queryClient = useQueryClient();
+  const [utcNow, setUtcNow] = useState(() => new Date());
+  const [nextCheck, setNextCheck] = useState(CHECK_INTERVAL_SECONDS);
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [showAlarmOverlay, setShowAlarmOverlay] = useState(false);
+  const [audioBlocked, setAudioBlocked] = useState(false);
 
-  // Config (persistida)
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const alarmTimeoutRef = useRef<number | null>(null);
+  const showAlarmRef = useRef(false);
+  const lastMsgHashRef = useRef("");
+
+  const {
+    data: warnings,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["sbmq-alerts"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("settings")
-        .select("check_interval")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
+      const res = await fetchRedemetAlerts(ICAO);
+      if (res.error) throw new Error(res.error);
+      return (res.data ?? []).filter(isAerodromeWarning) as DashboardAlert[];
     },
   });
 
-  const intervalSeconds = useMemo(() => {
-    const v = settings?.check_interval ?? DEFAULT_INTERVAL_SECONDS;
-    return typeof v === "number" && Number.isFinite(v) && v >= 60 ? v : DEFAULT_INTERVAL_SECONDS;
-  }, [settings?.check_interval]);
+  const list = warnings ?? [];
+  const countdownDisplay = `${Math.floor(nextCheck / 60)
+    .toString()
+    .padStart(2, "0")}:${(nextCheck % 60).toString().padStart(2, "0")}`;
+  const ringOffset = CIRCUMFERENCE - (nextCheck / CHECK_INTERVAL_SECONDS) * CIRCUMFERENCE;
 
-  const [nextCheck, setNextCheck] = useState(intervalSeconds);
-
-  // Fetch favorites
-  const { data: favorites, isLoading: favoritesLoading } = useQuery({
-    queryKey: ["favorites"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("favorites").select("*").eq("enabled", true).order("sort_order");
-
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const favoriteIcaos = useMemo(
-    () => (favorites ?? []).map((f) => String(f.icao).toUpperCase()).filter(Boolean),
-    [favorites]
-  );
-
-  const checkingRef = useRef(false);
-  const lastAutoCheckKeyRef = useRef<string>("");
-
-  const runCheckNow = useCallback(async () => {
-    if (checkingRef.current) return;
-    if (favoriteIcaos.length === 0) return;
-
-    checkingRef.current = true;
-    try {
-      await Promise.all(favoriteIcaos.map((icao) => registerAerodromeWarningsForIcao(icao)));
-
-      // Garante que apenas avisos "em vigor" permaneçam como active
-      await expireOutOfWindowActiveAlerts({ icaos: favoriteIcaos });
-
-      // Atualiza todas as fontes do Dashboard que dependem de alerts_history
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["recent-alerts"] }),
-        queryClient.invalidateQueries({ queryKey: ["active-alert-counts"] }),
-        queryClient.invalidateQueries({ queryKey: ["alerts-history"] }),
-      ]);
-    } finally {
-      checkingRef.current = false;
+  const initAudio = () => {
+    if (!audioCtxRef.current) {
+      const AudioContextCtor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) return null;
+      audioCtxRef.current = new AudioContextCtor();
     }
-  }, [favoriteIcaos, queryClient]);
 
-  // Ao entrar no Dashboard (ou mudar lista), checa uma vez para não depender do timer
+    if (audioCtxRef.current.state === "suspended") {
+      void audioCtxRef.current
+        .resume()
+        .then(() => setAudioBlocked(false))
+        .catch(() => setAudioBlocked(true));
+    }
+
+    return audioCtxRef.current;
+  };
+
+  const playBeep = (duration = 0.2, freq = 880) => {
+    const ctx = initAudio();
+    if (!ctx) return;
+
+    if (ctx.state === "suspended") {
+      setAudioBlocked(true);
+      void ctx.resume().catch(() => undefined);
+    } else {
+      setAudioBlocked(false);
+    }
+
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "square";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+      gain.gain.setValueAtTime(0.01, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch {
+      // Mantem o monitoramento mesmo sem audio.
+    }
+  };
+
+  const stopAlarm = () => {
+    showAlarmRef.current = false;
+    setShowAlarmOverlay(false);
+    setAudioBlocked(false);
+    if (alarmTimeoutRef.current) {
+      window.clearTimeout(alarmTimeoutRef.current);
+      alarmTimeoutRef.current = null;
+    }
+  };
+
+  const triggerAlarm = () => {
+    if (!audioEnabled) return;
+
+    showAlarmRef.current = true;
+    setShowAlarmOverlay(true);
+
+    const playLoop = () => {
+      if (!showAlarmRef.current) return;
+
+      playBeep(0.2, 880);
+      window.setTimeout(() => {
+        playBeep(0.2, 587);
+      }, 300);
+
+      alarmTimeoutRef.current = window.setTimeout(playLoop, 800);
+    };
+
+    if (alarmTimeoutRef.current) {
+      window.clearTimeout(alarmTimeoutRef.current);
+      alarmTimeoutRef.current = null;
+    }
+
+    playLoop();
+  };
+
   useEffect(() => {
-    const key = favoriteIcaos.join(",");
-    if (!key) return;
-    if (lastAutoCheckKeyRef.current === key) return;
-    lastAutoCheckKeyRef.current = key;
-    void runCheckNow();
-  }, [favoriteIcaos, runCheckNow]);
-
-  // Fetch active alert counts (somente avisos em vigor) for the monitored ICAOs
-  const { data: activeAlertCounts } = useQuery({
-    queryKey: ["active-alert-counts", favoriteIcaos.join(",")],
-    enabled: favoriteIcaos.length > 0,
-    queryFn: async () => {
-      // Antes de contar, expira o que estiver fora da validade
-      await expireOutOfWindowActiveAlerts({ icaos: favoriteIcaos });
-
-      const { data, error } = await supabase
-        .from("alerts_history")
-        .select("icao, valid_from, valid_until")
-        .eq("status", "active")
-        .in("icao", favoriteIcaos);
-
-      if (error) throw error;
-
-      const now = new Date();
-      const counts: Record<string, number> = {};
-      for (const row of data ?? []) {
-        if (!isAlertInForce(row as any, now)) continue;
-        const key = String((row as any).icao || "").toUpperCase();
-        if (!key) continue;
-        counts[key] = (counts[key] ?? 0) + 1;
-      }
-      return counts;
-    },
-  });
-
-  // Fetch recent alerts (somente avisos em vigor)
-  const { data: recentAlerts, isLoading: alertsLoading } = useQuery({
-    queryKey: ["recent-alerts"],
-    queryFn: async () => {
-      await expireOutOfWindowActiveAlerts();
-
-      const { data, error } = await supabase
-        .from("alerts_history")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-
-      const now = new Date();
-      const inForce = (data ?? []).filter((a: any) => a.status === "active" && isAlertInForce(a, now));
-      return inForce.slice(0, 10);
-    },
-  });
-
-  // Countdown timer (reinicia quando o intervalo muda)
-  useEffect(() => {
-    setNextCheck(intervalSeconds);
-  }, [intervalSeconds]);
+    const timer = window.setInterval(() => setUtcNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    const timer = window.setInterval(() => {
       setNextCheck((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => window.clearInterval(timer);
   }, []);
 
-  // Quando chega a 0, faz a checagem e reinicia o contador
   useEffect(() => {
     if (nextCheck !== 0) return;
 
     (async () => {
-      await runCheckNow();
-      setNextCheck(intervalSeconds);
+      await refetch();
+      setNextCheck(CHECK_INTERVAL_SECONDS);
     })();
-  }, [nextCheck, runCheckNow, intervalSeconds]);
+  }, [nextCheck, refetch]);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  useEffect(() => {
+    const topMessage = list.length > 0 ? getAlertMessage(list[0]) : "";
 
-  const activeAlerts = useMemo(() => {
-    const counts = activeAlertCounts ?? {};
-    return Object.values(counts).reduce((sum, v) => sum + (Number(v) || 0), 0);
-  }, [activeAlertCounts]);
+    if (!topMessage) {
+      lastMsgHashRef.current = "";
+      return;
+    }
+
+    if (topMessage !== lastMsgHashRef.current) {
+      lastMsgHashRef.current = topMessage;
+      triggerAlarm();
+    }
+  }, [list]);
+
+  useEffect(() => {
+    const unlock = () => {
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state === "suspended") {
+        void ctx.resume().then(() => setAudioBlocked(false)).catch(() => undefined);
+      }
+    };
+
+    document.addEventListener("click", unlock);
+    document.addEventListener("keydown", unlock);
+
+    return () => {
+      document.removeEventListener("click", unlock);
+      document.removeEventListener("keydown", unlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (alarmTimeoutRef.current) window.clearTimeout(alarmTimeoutRef.current);
+      if (audioCtxRef.current) {
+        void audioCtxRef.current.close();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    showAlarmRef.current = showAlarmOverlay;
+    if (!showAlarmOverlay && alarmTimeoutRef.current) {
+      window.clearTimeout(alarmTimeoutRef.current);
+      alarmTimeoutRef.current = null;
+    }
+  }, [showAlarmOverlay]);
+
+  const statusLabel = useMemo(() => {
+    if (error) return "Indisponível";
+    if (isFetching) return "Atualizando";
+    return "Online";
+  }, [error, isFetching]);
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="glass-panel neon-border hover-glow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-destructive" />
-              Avisos Ativos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold glow-text">{activeAlerts}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel neon-border hover-glow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-primary" />
-              Localidades
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {favoritesLoading ? <Skeleton className="h-9 w-16" /> : <p className="text-3xl font-bold glow-text">{favorites?.length || 0}</p>}
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel neon-border hover-glow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-              <Clock className="w-4 h-4 text-accent" />
-              Próxima Checagem
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold font-mono glow-text">{formatTime(nextCheck)}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel neon-border hover-glow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-secondary" />
-              Status API
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Badge variant="outline" className="bg-accent/20 text-accent border-accent/50">
-              Online
-            </Badge>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Monitored Locations */}
-      <Card className="glass-panel neon-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-primary" />
-            Localidades Monitoradas
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {favoritesLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-20 w-full" />
-              ))}
+    <div className="relative">
+      <main className="w-full max-w-4xl mx-auto glass-panel rounded-3xl p-8 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <header className="flex flex-col md:flex-row md:justify-between md:items-center gap-6 mb-10 border-b border-white/10 pb-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/10 rounded-xl rounded-tl-none border border-primary/20">
+              <Radar className="w-8 h-8 text-primary animate-pulse" />
             </div>
-          ) : favorites && favorites.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {favorites.map((fav) => {
-                const icao = String(fav.icao).toUpperCase();
-                const count = activeAlertCounts?.[icao] ?? 0;
-
-                return (
-                  <Card key={fav.id} className="bg-muted/30 border-primary/30 hover-glow">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-lg font-bold text-primary">{icao}</p>
-                          <p className="text-sm text-muted-foreground">{fav.name}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <FlightRuleBadge icao={icao} />
-                          <Badge variant="outline" className="bg-accent/20 text-accent border-accent/50">
-                            {count} aviso{count === 1 ? "" : "s"}
-                          </Badge>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+                MONITOR AD WRNG
+              </h1>
+              <div className="flex items-center gap-2 text-sm text-gray-300 mt-2">
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20">Localidade • {ICAO}</span>
+                <Badge variant="outline" className={error ? "bg-destructive/20 text-destructive border-destructive/50" : "bg-accent/20 text-accent border-accent/50"}>
+                  API {statusLabel}
+                </Badge>
+              </div>
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <MapPin className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-              <p className="text-muted-foreground">Nenhuma localidade favorita configurada</p>
-              <p className="text-sm text-muted-foreground mt-1">Adicione localidades nas Configurações</p>
+          </div>
+
+          <div className="flex flex-col items-end gap-2">
+            <div className="rounded-2xl px-4 py-2 text-4xl md:text-5xl font-light font-mono tracking-tighter bg-white/5 border border-white/15 shadow-[0_0_0_1px_rgba(0,242,255,0.25),0_0_25px_rgba(0,242,255,0.25)]">
+              {formatUtcClock(utcNow)}
+            </div>
+            <div className="text-xs font-bold px-3 py-1 rounded bg-white/5 border border-white/10 uppercase tracking-widest text-gray-400">UTC</div>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="glass-panel rounded-xl p-4 flex items-center justify-between border border-primary/30">
+            <div>
+              <div className="text-xs text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                Localidade (ICAO)
+                <Edit3 className="w-3 h-3 opacity-60" />
+              </div>
+              <div className="mt-1 text-2xl font-bold text-white font-mono">{ICAO}</div>
+            </div>
+            <MapPin className="text-primary w-5 h-5" />
+          </div>
+
+          <div className="glass-panel rounded-xl p-4 flex items-center justify-between">
+            <div>
+              <div className="text-xs text-gray-400 uppercase tracking-wider">Próxima Checagem</div>
+              <div className="text-2xl font-bold font-mono text-primary mt-1">{countdownDisplay}</div>
+            </div>
+            <div className="relative w-8 h-8">
+              <svg className="transform -rotate-90 w-8 h-8">
+                <circle cx="16" cy="16" r={CIRCLE_RADIUS} stroke="currentColor" strokeWidth="3" fill="transparent" className="text-gray-800" />
+                <circle
+                  cx="16"
+                  cy="16"
+                  r={CIRCLE_RADIUS}
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  fill="transparent"
+                  strokeDasharray={CIRCUMFERENCE}
+                  strokeDashoffset={ringOffset}
+                  className="text-primary transition-all duration-1000 ease-linear"
+                />
+              </svg>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              const next = !audioEnabled;
+              setAudioEnabled(next);
+              if (next) {
+                playBeep(0.1, 880);
+              } else {
+                stopAlarm();
+              }
+            }}
+            className={`rounded-xl p-4 flex items-center justify-between transition-all duration-300 border ${
+              audioEnabled ? "bg-primary/20 border-primary/50 text-white" : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
+            }`}
+          >
+            <div className="text-left">
+              <div className="text-xs uppercase tracking-wider">{audioEnabled ? "Audio Ativo" : "Audio Mudo"}</div>
+              <div className="text-sm font-semibold mt-1">{audioEnabled ? "Monitorando" : "Clique para ativar"}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full ${audioEnabled ? "bg-emerald-400" : "bg-red-400"}`} />
+              {audioEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+            </div>
+          </button>
+        </div>
+
+        <div className="relative min-h-[200px]">
+          {(isLoading || isFetching) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-10 rounded-xl">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                <div className="text-xs text-primary tracking-widest uppercase">Consultando API...</div>
+              </div>
             </div>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Recent Alerts */}
-      <Card className="glass-panel neon-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-destructive" />
-            Avisos Recentes
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {alertsLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-24 w-full" />
-              ))}
+          {error ? (
+            <Card className="bg-gradient-to-br from-red-900/40 to-black/60 border border-red-500/30 rounded-2xl p-6">
+              <CardContent className="p-0 flex items-center gap-4">
+                <AlertCircle className="w-10 h-10 text-red-500" />
+                <div>
+                  <p className="text-lg font-semibold text-red-100">Falha na consulta</p>
+                  <p className="text-sm text-red-200/80">{error instanceof Error ? error.message : "Erro inesperado"}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : list.length === 0 ? (
+            <div className="rounded-2xl p-12 text-center border-dashed border-2 border-emerald-500/20 flex flex-col items-center justify-center gap-4 bg-emerald-950/20">
+              <div className="p-4 bg-emerald-500/10 rounded-full">
+                <CheckCircle2 className="w-12 h-12 text-green-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-200">Nenhum Aviso Vigente</h3>
+              <p className="text-gray-300 max-w-sm">
+                O aerodromo de <b className="text-white">{ICAO}</b> esta operando normalmente sem avisos de aerodromo reportados na API REDEMET.
+              </p>
             </div>
-          ) : recentAlerts && recentAlerts.length > 0 ? (
-            <div className="space-y-3">
-              {recentAlerts.map((alert) => (
-                <Card key={alert.id} className="bg-muted/30 border-l-4 border-l-destructive">
-                  <CardContent className="pt-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="outline" className="bg-primary/20 text-primary">
-                            {alert.icao}
-                          </Badge>
-                          {alert.severity === "low" ? (
-                            <FlightRuleBadge icao={alert.icao} fallbackText="LOW" className="animate-glow-pulse" />
-                          ) : (
-                            <Badge variant={alert.severity === "critical" ? "destructive" : "secondary"} className="animate-glow-pulse">
-                              {alert.severity}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm font-medium mb-1">{alert.alert_type}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{alert.content}</p>
-                      </div>
-                      <div className="text-right text-xs text-muted-foreground whitespace-nowrap">
-                        {alert.created_at ? new Date(alert.created_at).toLocaleString("pt-BR") : ""}
+          ) : (
+            <div className="space-y-4">
+              {list.map((aviso, idx) => (
+                <div
+                  key={`${aviso.id || idx}-${idx}`}
+                  className="bg-gradient-to-br from-red-900/40 to-black/60 border border-red-500/30 rounded-2xl p-6 relative overflow-hidden group hover:border-red-500/50 transition-all duration-500"
+                >
+                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-red-500/20 blur-3xl rounded-full group-hover:bg-red-500/30 transition-all" />
+
+                  <div className="flex flex-col md:flex-row gap-6 relative z-10">
+                    <div className="flex-shrink-0">
+                      <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20 shadow-[0_0_15px_rgba(255,0,0,0.2)]">
+                        <AlertCircle className="w-8 h-8 text-red-500" />
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="flex-grow space-y-4">
+                      <div className="flex justify-between items-start gap-3">
+                        <h3 className="text-xl md:text-2xl font-bold text-white tracking-wide">ALERTA DE AVISO DE AERODROMO</h3>
+                        <div className="px-3 py-1 rounded text-xs font-bold uppercase animate-pulse bg-gradient-to-r from-red-500 to-amber-300 text-black border border-white/20">
+                          Vigente
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 bg-black/20 p-3 rounded-lg border border-white/5">
+                        <div>
+                          <div className="text-xs text-gray-500 uppercase">Inicio (UTC)</div>
+                          <div className="font-mono text-lg text-red-200">{formatUtcDate(aviso.validade_inicial ?? aviso.data_validade_ini)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500 uppercase">Fim (UTC)</div>
+                          <div className="font-mono text-lg text-red-200">{formatUtcDate(aviso.validade_final ?? aviso.data_validade_fim)}</div>
+                        </div>
+                      </div>
+                      <div className="bg-black/40 p-5 rounded-lg border-l-4 border-red-500 font-mono text-sm text-red-100 leading-relaxed whitespace-pre-wrap">
+                        {getAlertMessage(aviso)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-              <p className="text-muted-foreground">Nenhum aviso registrado</p>
-            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        <footer className="mt-8 text-center text-xs text-gray-500 border-t border-white/5 pt-4 flex flex-col md:flex-row gap-2 justify-between">
+          <span>Desenvolvido com Tecnologia Antigravity</span>
+          <span>Dados Oficiais: REDEMET API</span>
+        </footer>
+      </main>
+
+      {showAlarmOverlay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+          <div className="max-w-lg w-full bg-[#1a0505] border-2 border-red-500/80 rounded-3xl p-8 text-center shadow-[0_0_100px_rgba(255,0,0,0.4)] relative overflow-hidden animate-pulse">
+            <div
+              className="absolute inset-0 opacity-10"
+              style={{
+                background: "repeating-linear-gradient(45deg, transparent, transparent 10px, #ff0000 10px, #ff0000 20px)",
+              }}
+            />
+            <div className="relative z-10 flex flex-col items-center gap-6">
+              <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center animate-bounce shadow-[0_0_30px_rgba(255,0,0,0.6)]">
+                <BellRing className="w-12 h-12 text-white" />
+              </div>
+              <h2 className="text-4xl font-black text-white uppercase tracking-tighter">Atencao Piloto</h2>
+              <p className="text-red-200 text-lg">Novo aviso meteorologico detectado para <b>{ICAO}</b>.</p>
+
+              {audioBlocked && (
+                <div className="bg-yellow-500/20 border border-yellow-500/50 p-3 rounded-xl animate-pulse">
+                  <p className="text-yellow-200 font-bold uppercase text-sm">Audio bloqueado pelo navegador</p>
+                  <p className="text-yellow-100/70 text-xs mt-1">Clique na tela para habilitar o som</p>
+                </div>
+              )}
+
+              <Button onClick={stopAlarm} className="w-full py-6 bg-white text-red-900 hover:bg-gray-200 font-bold text-xl rounded-xl uppercase">
+                Reconhecer e Silenciar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

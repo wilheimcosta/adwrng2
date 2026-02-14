@@ -1,4 +1,4 @@
-import { Activity, History, Settings, Radio } from "lucide-react";
+import { Activity, Radio } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
@@ -17,8 +17,6 @@ import {
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: Activity },
-  { title: "Histórico", url: "/history", icon: History },
-  { title: "Configurações", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {

@@ -1,5 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
-
 export interface RedemetAlert {
   id: string;
   tipo: string;
@@ -10,31 +8,71 @@ export interface RedemetAlert {
 }
 
 export interface RedemetResponse {
-  data?: {
-    data?: RedemetAlert[];
-  };
+  data?: RedemetAlert[];
   error?: string;
 }
 
+function normalizeText(input: string) {
+  return input
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+export function isAerodromeWarning(alert: RedemetAlert): boolean {
+  const rawMsg = (alert as any).mensagem ?? (alert as any).mens ?? "";
+  const rawTipo = (alert as any).tipo ?? "";
+
+  const tipo = normalizeText(String(rawTipo));
+  const msg = normalizeText(String(rawMsg));
+
+  if (msg.includes("ad wrng") || msg.includes("aerodrome warning")) return true;
+  if (tipo.includes("aerodromo") || msg.includes("aerodromo")) return true;
+  if (tipo.includes("aviso") && (msg.includes("ad") || msg.includes("aerodromo"))) return true;
+
+  return false;
+}
+
+function formatNetworkError(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (/failed to fetch|networkerror|network request failed/i.test(message)) {
+    return "Falha de conexão com o backend (Supabase). Verifique VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no .env.";
+  }
+  return message || fallback;
+}
+
 /**
- * Fetch aviation alerts for a specific ICAO code via secure Edge Function proxy
+ * Busca avisos de aeródromo diretamente na API da REDEMET.
  */
 export async function fetchRedemetAlerts(icao: string): Promise<RedemetResponse> {
+  const apiKey = import.meta.env.VITE_REDEMET_API_KEY;
+  if (!apiKey) {
+    return { error: "VITE_REDEMET_API_KEY não configurada no .env." };
+  }
+
   try {
-    const { data, error } = await supabase.functions.invoke('redemet-proxy', {
-      body: { icao: icao.toUpperCase() },
+    const url = `https://api-redemet.decea.mil.br/mensagens/aviso/${icao.toUpperCase()}?api_key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
     });
 
-    if (error) {
-      console.error('Edge function error:', error);
-      return { error: error.message || 'Failed to fetch alerts' };
+    if (!response.ok) {
+      return { error: `REDEMET retornou ${response.status}` };
     }
 
-    return { data };
+    const payload = await response.json();
+    const alerts: RedemetAlert[] =
+      (Array.isArray(payload?.data) ? payload.data : null) ??
+      (Array.isArray(payload?.data?.data) ? payload.data.data : null) ??
+      (Array.isArray(payload?.data?.data?.data) ? payload.data.data.data : null) ??
+      [];
+
+    return { data: alerts };
   } catch (error) {
-    console.error('Fetch error:', error);
-    return { 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    console.error("Fetch error:", error);
+    return {
+      error: formatNetworkError(error, "Unknown error occurred"),
     };
   }
 }
@@ -79,26 +117,33 @@ export type AerodromeStatusResult =
   | { ok: false; error: string };
 
 /**
- * Consulta o endpoint /aerodromos/status/localidades/{ICAO} via função de backend.
+ * Consulta o endpoint /aerodromos/status/localidades/{ICAO} diretamente na REDEMET.
  * Retorna o "flag" (ex.: g/y/r) que vem antes do METAR na resposta.
  */
 export async function fetchAerodromeStatus(icao: string): Promise<{ flag: string | null; error?: string }> {
+  const apiKey = import.meta.env.VITE_REDEMET_API_KEY;
+  if (!apiKey) {
+    return { flag: null, error: "VITE_REDEMET_API_KEY não configurada no .env." };
+  }
+
   try {
-    const { data, error } = await supabase.functions.invoke("redemet-status-proxy", {
-      body: { icao: icao.toUpperCase() },
+    const url = `https://api-redemet.decea.mil.br/aerodromos/status/localidades/${icao.toUpperCase()}?api_key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
     });
 
-    if (error) {
-      console.error("Edge function error:", error);
-      return { flag: null, error: error.message || "Failed to fetch aerodrome status" };
+    if (!response.ok) {
+      return { flag: null, error: `REDEMET retornou ${response.status}` };
     }
 
+    const data = await response.json();
     // Formato esperado: { data: [ [ 'SBVT', 'Nome', lat, lon, 'g', 'METAR...' ] ] }
     const row = (data as any)?.data?.[0];
     const flag = Array.isArray(row) ? (row[4] ?? null) : null;
     return { flag: flag ? String(flag) : null };
   } catch (e) {
     console.error("Fetch error:", e);
-    return { flag: null, error: e instanceof Error ? e.message : "Unknown error occurred" };
+    return { flag: null, error: formatNetworkError(e, "Unknown error occurred") };
   }
 }
