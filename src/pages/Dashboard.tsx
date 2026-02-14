@@ -237,7 +237,7 @@ export default function Dashboard() {
 
   return (
     <div className="relative">
-      <section className="w-full max-w-4xl mx-auto mb-4 glass-panel border border-primary/25 rounded-2xl px-4 py-3">
+      <section className="w-full mb-4 glass-panel border border-primary/25 rounded-2xl px-4 py-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center neon-border">
@@ -255,7 +255,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <main className="w-full max-w-4xl mx-auto glass-panel rounded-3xl p-8 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <main className="w-full glass-panel rounded-3xl p-8 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
         <header className="flex flex-col md:flex-row md:justify-between md:items-center gap-6 mb-10 border-b border-white/10 pb-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-primary/10 rounded-xl rounded-tl-none border border-primary/20">
