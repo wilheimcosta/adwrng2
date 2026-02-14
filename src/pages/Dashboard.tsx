@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, BellRing, CheckCircle2, Edit3, MapPin, Radar, Volume2, VolumeX } from "lucide-react";
+import { AlertCircle, BellRing, CheckCircle2, Edit3, MapPin, Radar, Radio, Volume2, VolumeX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -237,6 +237,24 @@ export default function Dashboard() {
 
   return (
     <div className="relative">
+      <section className="w-full max-w-4xl mx-auto mb-4 glass-panel border border-primary/25 rounded-2xl px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center neon-border">
+              <Radio className="w-5 h-5 text-primary animate-pulse" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold glow-text leading-none">AeroWatch</p>
+              <p className="text-sm text-muted-foreground">Aviation Alerts</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Sistema Online</span>
+          </div>
+        </div>
+      </section>
+
       <main className="w-full max-w-4xl mx-auto glass-panel rounded-3xl p-8 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
         <header className="flex flex-col md:flex-row md:justify-between md:items-center gap-6 mb-10 border-b border-white/10 pb-6">
           <div className="flex items-center gap-4">
