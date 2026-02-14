@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { fetchRedemetAlerts, isAerodromeWarning, type RedemetAlert } from "@/lib/redemet";
+import { fetchAerodromeStatus, fetchRedemetAlerts, isAerodromeWarning, mapFlightRuleFromFlag, type RedemetAlert } from "@/lib/redemet";
 
 const ICAO = "SBMQ";
 const CHECK_INTERVAL_SECONDS = 300;
@@ -42,6 +42,12 @@ function formatUtcDate(dateStr: unknown): string {
   return `${day}/${mon} ${ho}:${mi}`;
 }
 
+function flightRuleBadgeClass(rule: "VFR" | "IFR" | "LIFR") {
+  if (rule === "VFR") return "bg-emerald-500/20 text-emerald-300 border-emerald-400/60";
+  if (rule === "IFR") return "bg-red-500/20 text-red-300 border-red-400/60";
+  return "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-400/60";
+}
+
 export default function Dashboard() {
   const [utcNow, setUtcNow] = useState(() => new Date());
   const [nextCheck, setNextCheck] = useState(CHECK_INTERVAL_SECONDS);
@@ -67,6 +73,15 @@ export default function Dashboard() {
       if (res.error) throw new Error(res.error);
       return (res.data ?? []).filter(isAerodromeWarning) as DashboardAlert[];
     },
+  });
+
+  const { data: flightRule } = useQuery({
+    queryKey: ["sbmq-status-flag"],
+    queryFn: async () => {
+      const res = await fetchAerodromeStatus(ICAO);
+      return mapFlightRuleFromFlag(res.flag);
+    },
+    refetchInterval: 60_000,
   });
 
   const list = warnings ?? [];
@@ -271,6 +286,11 @@ export default function Dashboard() {
                 <Badge variant="outline" className={error ? "bg-destructive/20 text-destructive border-destructive/50" : "bg-accent/20 text-accent border-accent/50"}>
                   API {statusLabel}
                 </Badge>
+                {flightRule && (
+                  <Badge variant="outline" className={`${flightRuleBadgeClass(flightRule)} animate-pulse`}>
+                    {flightRule}
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
