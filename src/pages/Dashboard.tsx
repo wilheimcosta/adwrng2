@@ -345,7 +345,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-2">
               {flightRule && (
-                <Badge variant="outline" className={`${flightRuleBadgeClass(flightRule)} animate-pulse`}>
+                <Badge variant="outline" className={`${flightRuleBadgeClass(flightRule)} animate-pulse px-5 py-2 text-base font-bold tracking-wide`}>
                   {flightRule}
                 </Badge>
               )}
