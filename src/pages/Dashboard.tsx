@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { fetchAerodromeStatus, fetchRedemetAlerts, isAerodromeWarning, mapFlightRuleFromFlag, type RedemetAlert } from "@/lib/redemet";
 
-const ICAO = "SBMQ";
 const CHECK_INTERVAL_SECONDS = 300;
 const CIRCLE_RADIUS = 14;
 const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
@@ -49,6 +48,14 @@ function flightRuleBadgeClass(rule: "VFR" | "IFR" | "LIFR") {
 }
 
 export default function Dashboard() {
+  const [icao, setIcao] = useState(() => {
+    if (typeof window === "undefined") return "SBMQ";
+    const saved = localStorage.getItem("adwrng_icao");
+    const normalized = String(saved ?? "SBMQ").trim().toUpperCase();
+    return /^[A-Z]{4}$/.test(normalized) ? normalized : "SBMQ";
+  });
+  const [tempIcao, setTempIcao] = useState(icao);
+  const [editingIcao, setEditingIcao] = useState(false);
   const [utcNow, setUtcNow] = useState(() => new Date());
   const [nextCheck, setNextCheck] = useState(CHECK_INTERVAL_SECONDS);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -67,21 +74,23 @@ export default function Dashboard() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["sbmq-alerts"],
+    queryKey: ["alerts", icao],
     queryFn: async () => {
-      const res = await fetchRedemetAlerts(ICAO);
+      const res = await fetchRedemetAlerts(icao);
       if (res.error) throw new Error(res.error);
       return (res.data ?? []).filter(isAerodromeWarning) as DashboardAlert[];
     },
+    enabled: /^[A-Z]{4}$/.test(icao),
   });
 
   const { data: flightRule } = useQuery({
-    queryKey: ["sbmq-status-flag"],
+    queryKey: ["status-flag", icao],
     queryFn: async () => {
-      const res = await fetchAerodromeStatus(ICAO);
+      const res = await fetchAerodromeStatus(icao);
       return mapFlightRuleFromFlag(res.flag);
     },
     refetchInterval: 60_000,
+    enabled: /^[A-Z]{4}$/.test(icao),
   });
 
   const list = warnings ?? [];
@@ -197,6 +206,11 @@ export default function Dashboard() {
   }, [nextCheck, refetch]);
 
   useEffect(() => {
+    localStorage.setItem("adwrng_icao", icao);
+    setTempIcao(icao);
+  }, [icao]);
+
+  useEffect(() => {
     const topMessage = list.length > 0 ? getAlertMessage(list[0]) : "";
 
     if (!topMessage) {
@@ -250,6 +264,16 @@ export default function Dashboard() {
     return "Online";
   }, [error, isFetching]);
 
+  const saveIcao = () => {
+    const normalized = tempIcao.trim().toUpperCase().replace(/[^A-Z]/g, "");
+    if (/^[A-Z]{4}$/.test(normalized)) {
+      setIcao(normalized);
+      setNextCheck(CHECK_INTERVAL_SECONDS);
+      void refetch();
+    }
+    setEditingIcao(false);
+  };
+
   return (
     <div className="relative">
       <section className="w-full mb-4 glass-panel border border-primary/25 rounded-2xl px-4 py-3">
@@ -282,15 +306,10 @@ export default function Dashboard() {
               </h1>
               <div className="flex items-center gap-2 text-sm text-gray-300 mt-2">
                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20">Localidade • {ICAO}</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20">Localidade • {icao}</span>
                 <Badge variant="outline" className={error ? "bg-destructive/20 text-destructive border-destructive/50" : "bg-accent/20 text-accent border-accent/50"}>
                   API {statusLabel}
                 </Badge>
-                {flightRule && (
-                  <Badge variant="outline" className={`${flightRuleBadgeClass(flightRule)} animate-pulse`}>
-                    {flightRule}
-                  </Badge>
-                )}
               </div>
             </div>
           </div>
@@ -308,11 +327,38 @@ export default function Dashboard() {
             <div>
               <div className="text-xs text-gray-400 uppercase tracking-wider flex items-center gap-2">
                 Localidade (ICAO)
-                <Edit3 className="w-3 h-3 opacity-60" />
+                <button onClick={() => setEditingIcao(true)} className="opacity-60 hover:opacity-100 transition-opacity">
+                  <Edit3 className="w-3 h-3" />
+                </button>
               </div>
-              <div className="mt-1 text-2xl font-bold text-white font-mono">{ICAO}</div>
+              {editingIcao ? (
+                <input
+                  value={tempIcao}
+                  onChange={(e) => setTempIcao(e.target.value.toUpperCase())}
+                  onBlur={saveIcao}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveIcao();
+                    if (e.key === "Escape") {
+                      setTempIcao(icao);
+                      setEditingIcao(false);
+                    }
+                  }}
+                  maxLength={4}
+                  autoFocus
+                  className="mt-1 w-28 bg-transparent border-b border-primary text-2xl font-bold text-white font-mono outline-none"
+                />
+              ) : (
+                <div className="mt-1 text-2xl font-bold text-white font-mono">{icao}</div>
+              )}
             </div>
-            <MapPin className="text-primary w-5 h-5" />
+            <div className="flex items-center gap-2">
+              {flightRule && (
+                <Badge variant="outline" className={`${flightRuleBadgeClass(flightRule)} animate-pulse`}>
+                  {flightRule}
+                </Badge>
+              )}
+              <MapPin className="text-primary w-5 h-5" />
+            </div>
           </div>
 
           <div className="glass-panel rounded-xl p-4 flex items-center justify-between">
@@ -390,7 +436,7 @@ export default function Dashboard() {
               </div>
               <h3 className="text-xl font-semibold text-gray-200">Nenhum Aviso Vigente</h3>
               <p className="text-gray-300 max-w-sm">
-                O aerodromo de <b className="text-white">{ICAO}</b> esta operando normalmente sem avisos de aerodromo reportados na API REDEMET.
+                O aerodromo de <b className="text-white">{icao}</b> esta operando normalmente sem avisos de aerodromo reportados na API REDEMET.
               </p>
             </div>
           ) : (
@@ -456,7 +502,7 @@ export default function Dashboard() {
                 <BellRing className="w-12 h-12 text-white" />
               </div>
               <h2 className="text-4xl font-black text-white uppercase tracking-tighter">Atencao Piloto</h2>
-              <p className="text-red-200 text-lg">Novo aviso meteorologico detectado para <b>{ICAO}</b>.</p>
+              <p className="text-red-200 text-lg">Novo aviso meteorologico detectado para <b>{icao}</b>.</p>
 
               {audioBlocked && (
                 <div className="bg-yellow-500/20 border border-yellow-500/50 p-3 rounded-xl animate-pulse">
