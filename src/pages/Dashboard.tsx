@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, BellRing, CheckCircle2, Edit3, MapPin, Radar, Radio, Volume2, VolumeX } from "lucide-react";
+import { AlertCircle, BellRing, CheckCircle2, MapPin, Radar, Radio, Search, Volume2, VolumeX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,8 +54,7 @@ export default function Dashboard() {
     const normalized = String(saved ?? "SBMQ").trim().toUpperCase();
     return /^[A-Z]{4}$/.test(normalized) ? normalized : "SBMQ";
   });
-  const [tempIcao, setTempIcao] = useState(icao);
-  const [editingIcao, setEditingIcao] = useState(false);
+  const [inputIcao, setInputIcao] = useState(icao);
   const [utcNow, setUtcNow] = useState(() => new Date());
   const [nextCheck, setNextCheck] = useState(CHECK_INTERVAL_SECONDS);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -207,7 +206,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     localStorage.setItem("adwrng_icao", icao);
-    setTempIcao(icao);
+    setInputIcao(icao);
   }, [icao]);
 
   useEffect(() => {
@@ -264,14 +263,12 @@ export default function Dashboard() {
     return "Online";
   }, [error, isFetching]);
 
-  const saveIcao = () => {
-    const normalized = tempIcao.trim().toUpperCase().replace(/[^A-Z]/g, "");
+  const searchIcao = () => {
+    const normalized = inputIcao.trim().toUpperCase().replace(/[^A-Z]/g, "");
     if (/^[A-Z]{4}$/.test(normalized)) {
       setIcao(normalized);
       setNextCheck(CHECK_INTERVAL_SECONDS);
-      void refetch();
     }
-    setEditingIcao(false);
   };
 
   return (
@@ -324,32 +321,27 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <div className="glass-panel rounded-xl p-4 flex items-center justify-between border border-primary/30">
-            <div>
+            <div className="w-full">
               <div className="text-xs text-gray-400 uppercase tracking-wider flex items-center gap-2">
                 Localidade (ICAO)
-                <button onClick={() => setEditingIcao(true)} className="opacity-60 hover:opacity-100 transition-opacity">
-                  <Edit3 className="w-3 h-3" />
-                </button>
               </div>
-              {editingIcao ? (
+              <div className="mt-2 flex items-center gap-2">
                 <input
-                  value={tempIcao}
-                  onChange={(e) => setTempIcao(e.target.value.toUpperCase())}
-                  onBlur={saveIcao}
+                  value={inputIcao}
+                  onChange={(e) => setInputIcao(e.target.value.toUpperCase())}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") saveIcao();
-                    if (e.key === "Escape") {
-                      setTempIcao(icao);
-                      setEditingIcao(false);
-                    }
+                    if (e.key === "Enter") searchIcao();
                   }}
+                  placeholder="SBMQ"
                   maxLength={4}
-                  autoFocus
-                  className="mt-1 w-28 bg-transparent border-b border-primary text-2xl font-bold text-white font-mono outline-none"
+                  className="w-28 bg-transparent border-b border-primary text-2xl font-bold text-white font-mono outline-none"
                 />
-              ) : (
-                <div className="mt-1 text-2xl font-bold text-white font-mono">{icao}</div>
-              )}
+                <Button onClick={searchIcao} size="sm" className="h-8 px-3">
+                  <Search className="w-4 h-4 mr-1" />
+                  Pesquisar
+                </Button>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">Ativo: {icao}</div>
             </div>
             <div className="flex items-center gap-2">
               {flightRule && (
