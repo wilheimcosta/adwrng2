@@ -4,41 +4,19 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { fetchAerodromeStatus, fetchRedemetAlerts, isAerodromeWarning, mapFlightRuleFromFlag, type RedemetAlert } from "@/lib/redemet";
+import { fetchAerodromeStatusDetails, mapFlightRuleFromFlag } from "@/lib/redemet";
 
 const CHECK_INTERVAL_SECONDS = 300;
 const CIRCLE_RADIUS = 14;
 const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
-type DashboardAlert = RedemetAlert & {
-  mens?: string;
-  validade_inicial?: string;
-  validade_final?: string;
-};
-
-function getAlertMessage(alert: DashboardAlert): string {
-  return String(alert.mensagem ?? alert.mens ?? "Sem mensagem");
-}
+type DashboardWarning = { mensagem: string };
 
 function formatUtcClock(date: Date): string {
   const h = date.getUTCHours().toString().padStart(2, "0");
   const m = date.getUTCMinutes().toString().padStart(2, "0");
   const s = date.getUTCSeconds().toString().padStart(2, "0");
   return `${h}:${m}:${s}`;
-}
-
-function formatUtcDate(dateStr: unknown): string {
-  if (!dateStr) return "--";
-  const raw = String(dateStr);
-  const normalized = raw.includes("Z") ? raw : `${raw.replace(" ", "T")}Z`;
-  const d = new Date(normalized);
-  if (Number.isNaN(d.getTime())) return "--";
-
-  const day = d.getUTCDate().toString().padStart(2, "0");
-  const mon = (d.getUTCMonth() + 1).toString().padStart(2, "0");
-  const ho = d.getUTCHours().toString().padStart(2, "0");
-  const mi = d.getUTCMinutes().toString().padStart(2, "0");
-  return `${day}/${mon} ${ho}:${mi}`;
 }
 
 function flightRuleBadgeClass(rule: "VFR" | "IFR" | "LIFR") {
@@ -67,32 +45,25 @@ export default function Dashboard() {
   const lastMsgHashRef = useRef("");
 
   const {
-    data: warnings,
+    data: statusData,
     isLoading,
     isFetching,
     error,
     refetch,
   } = useQuery({
-    queryKey: ["alerts", icao],
+    queryKey: ["aerodrome-status", icao],
     queryFn: async () => {
-      const res = await fetchRedemetAlerts(icao);
+      const res = await fetchAerodromeStatusDetails(icao);
       if (res.error) throw new Error(res.error);
-      return (res.data ?? []).filter(isAerodromeWarning) as DashboardAlert[];
+      return res;
     },
     enabled: /^[A-Z]{4}$/.test(icao),
   });
 
-  const { data: flightRule } = useQuery({
-    queryKey: ["status-flag", icao],
-    queryFn: async () => {
-      const res = await fetchAerodromeStatus(icao);
-      return mapFlightRuleFromFlag(res.flag);
-    },
-    refetchInterval: 60_000,
-    enabled: /^[A-Z]{4}$/.test(icao),
-  });
-
-  const list = warnings ?? [];
+  const flightRule = mapFlightRuleFromFlag(statusData?.flag ?? null);
+  const list: DashboardWarning[] = statusData?.hasAdWarning
+    ? [{ mensagem: statusData.warningText ?? statusData.reportText ?? "Aviso de aeródromo ativo." }]
+    : [];
   const countdownDisplay = `${Math.floor(nextCheck / 60)
     .toString()
     .padStart(2, "0")}:${(nextCheck % 60).toString().padStart(2, "0")}`;
@@ -210,7 +181,7 @@ export default function Dashboard() {
   }, [icao]);
 
   useEffect(() => {
-    const topMessage = list.length > 0 ? getAlertMessage(list[0]) : "";
+    const topMessage = list.length > 0 ? list[0].mensagem : "";
 
     if (!topMessage) {
       lastMsgHashRef.current = "";
@@ -435,7 +406,7 @@ export default function Dashboard() {
             <div className="space-y-4">
               {list.map((aviso, idx) => (
                 <div
-                  key={`${aviso.id || idx}-${idx}`}
+                  key={`${idx}`}
                   className="bg-gradient-to-br from-red-900/40 to-black/60 border border-red-500/30 rounded-2xl p-6 relative overflow-hidden group hover:border-red-500/50 transition-all duration-500"
                 >
                   <div className="absolute -top-10 -right-10 w-32 h-32 bg-red-500/20 blur-3xl rounded-full group-hover:bg-red-500/30 transition-all" />
@@ -453,18 +424,8 @@ export default function Dashboard() {
                           Vigente
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4 bg-black/20 p-3 rounded-lg border border-white/5">
-                        <div>
-                          <div className="text-xs text-gray-500 uppercase">Inicio (UTC)</div>
-                          <div className="font-mono text-lg text-red-200">{formatUtcDate(aviso.validade_inicial ?? aviso.data_validade_ini)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 uppercase">Fim (UTC)</div>
-                          <div className="font-mono text-lg text-red-200">{formatUtcDate(aviso.validade_final ?? aviso.data_validade_fim)}</div>
-                        </div>
-                      </div>
                       <div className="bg-black/40 p-5 rounded-lg border-l-4 border-red-500 font-mono text-sm text-red-100 leading-relaxed whitespace-pre-wrap">
-                        {getAlertMessage(aviso)}
+                        {aviso.mensagem}
                       </div>
                     </div>
                   </div>

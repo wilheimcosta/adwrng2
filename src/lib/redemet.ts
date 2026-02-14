@@ -12,6 +12,14 @@ export interface RedemetResponse {
   error?: string;
 }
 
+export type AerodromeStatusDetails = {
+  flag: string | null;
+  reportText: string;
+  hasAdWarning: boolean;
+  warningText: string | null;
+  error?: string;
+};
+
 function normalizeText(input: string) {
   return input
     .toLowerCase()
@@ -36,9 +44,28 @@ export function isAerodromeWarning(alert: RedemetAlert): boolean {
 function formatNetworkError(error: unknown, fallback: string): string {
   const message = error instanceof Error ? error.message : String(error ?? "");
   if (/failed to fetch|networkerror|network request failed/i.test(message)) {
-    return "Falha de conexão com o backend (Supabase). Verifique VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no .env.";
+    return "Falha de conexão com a API da REDEMET. Verifique VITE_REDEMET_API_KEY e conectividade.";
   }
   return message || fallback;
+}
+
+function extractAdWarning(reportText: string): { hasAdWarning: boolean; warningText: string | null } {
+  const normalized = String(reportText ?? "");
+  if (!normalized.trim()) return { hasAdWarning: false, warningText: null };
+
+  if (/não há aviso para a localidade/i.test(normalized)) {
+    return { hasAdWarning: false, warningText: null };
+  }
+
+  const lines = normalized
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const warningLine = lines.find((line) => /AD WRNG/i.test(line));
+  if (warningLine) return { hasAdWarning: true, warningText: warningLine };
+
+  return { hasAdWarning: false, warningText: null };
 }
 
 /**
@@ -117,13 +144,22 @@ export type AerodromeStatusResult =
   | { ok: false; error: string };
 
 /**
- * Consulta o endpoint /aerodromos/status/localidades/{ICAO} diretamente na REDEMET.
- * Retorna o "flag" (ex.: g/y/r) que vem antes do METAR na resposta.
+ * Consulta o endpoint /aerodromos/status/localidades/{ICAO} diretamente na REDEMET
+ * e extrai:
+ * - flag (g/y/r)
+ * - texto da resposta (METAR/TAF/WRNG)
+ * - presença de AD WRNG.
  */
-export async function fetchAerodromeStatus(icao: string): Promise<{ flag: string | null; error?: string }> {
+export async function fetchAerodromeStatusDetails(icao: string): Promise<AerodromeStatusDetails> {
   const apiKey = import.meta.env.VITE_REDEMET_API_KEY;
   if (!apiKey) {
-    return { flag: null, error: "VITE_REDEMET_API_KEY não configurada no .env." };
+    return {
+      flag: null,
+      reportText: "",
+      hasAdWarning: false,
+      warningText: null,
+      error: "VITE_REDEMET_API_KEY não configurada no .env.",
+    };
   }
 
   try {
@@ -134,16 +170,29 @@ export async function fetchAerodromeStatus(icao: string): Promise<{ flag: string
     });
 
     if (!response.ok) {
-      return { flag: null, error: `REDEMET retornou ${response.status}` };
+      return { flag: null, reportText: "", hasAdWarning: false, warningText: null, error: `REDEMET retornou ${response.status}` };
     }
 
     const data = await response.json();
-    // Formato esperado: { data: [ [ 'SBVT', 'Nome', lat, lon, 'g', 'METAR...' ] ] }
-    const row = (data as any)?.data?.[0];
+    const rows = Array.isArray((data as any)?.data) ? (data as any).data : [];
+    const upperIcao = icao.toUpperCase();
+    const row = rows.find((r: unknown) => Array.isArray(r) && String((r as any)[0] ?? "").toUpperCase() === upperIcao) ?? rows[0];
     const flag = Array.isArray(row) ? (row[4] ?? null) : null;
-    return { flag: flag ? String(flag) : null };
+    const reportText = Array.isArray(row) ? String(row[5] ?? "") : "";
+    const warning = extractAdWarning(reportText);
+    return {
+      flag: flag ? String(flag) : null,
+      reportText,
+      hasAdWarning: warning.hasAdWarning,
+      warningText: warning.warningText,
+    };
   } catch (e) {
     console.error("Fetch error:", e);
-    return { flag: null, error: formatNetworkError(e, "Unknown error occurred") };
+    return { flag: null, reportText: "", hasAdWarning: false, warningText: null, error: formatNetworkError(e, "Unknown error occurred") };
   }
+}
+
+export async function fetchAerodromeStatus(icao: string): Promise<{ flag: string | null; error?: string }> {
+  const details = await fetchAerodromeStatusDetails(icao);
+  return { flag: details.flag, error: details.error };
 }
