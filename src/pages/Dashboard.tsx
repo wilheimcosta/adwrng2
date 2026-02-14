@@ -21,7 +21,7 @@ function formatUtcClock(date: Date): string {
 
 function flightRuleBadgeClass(rule: "VFR" | "IFR" | "LIFR") {
   if (rule === "VFR") return "bg-emerald-500/20 text-emerald-300 border-emerald-400/60";
-  if (rule === "IFR") return "bg-red-500/20 text-red-300 border-red-400/60";
+  if (rule === "IFR") return "bg-red-400/25 text-red-200 border-red-300/70";
   return "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-400/60";
 }
 
