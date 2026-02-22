@@ -259,9 +259,11 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">Aviation Alerts</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Sistema Online</span>
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg px-3 py-1.5 text-xl font-mono tracking-tight bg-white/5 border border-white/15 text-primary">
+              {formatUtcClock(utcNow)}
+            </div>
+            <div className="text-[10px] font-bold px-2 py-1 rounded bg-white/5 border border-white/10 uppercase tracking-widest text-gray-400">UTC</div>
           </div>
         </div>
       </section>
@@ -296,20 +298,16 @@ export default function Dashboard() {
                     </Badge>
                   )}
                 </div>
-                <div className="glass-panel rounded-xl p-3 border border-primary/30">
-                  <div className="text-[11px] text-gray-400 uppercase tracking-wider">Previsao</div>
-                  <div className="mt-1 text-xl font-bold text-white font-mono">TAF</div>
-                  <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap break-words">{tafLine}</div>
-                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col items-end gap-2">
-            <div className="rounded-2xl px-4 py-2 text-4xl md:text-5xl font-light font-mono tracking-tighter bg-white/5 border border-white/15 shadow-[0_0_0_1px_rgba(0,242,255,0.25),0_0_25px_rgba(0,242,255,0.25)]">
-              {formatUtcClock(utcNow)}
+          <div className="w-full md:max-w-sm">
+            <div className="glass-panel rounded-xl p-3 border border-primary/30">
+              <div className="text-[11px] text-gray-400 uppercase tracking-wider">Previsao</div>
+              <div className="mt-1 text-xl font-bold text-white font-mono">TAF</div>
+              <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap break-words">{tafLine}</div>
             </div>
-            <div className="text-xs font-bold px-3 py-1 rounded bg-white/5 border border-white/10 uppercase tracking-widest text-gray-400">UTC</div>
           </div>
         </header>
 
