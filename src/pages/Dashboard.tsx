@@ -259,6 +259,11 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">Aviation Alerts</p>
             </div>
           </div>
+          <div className="flex-1 text-center px-2">
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+              MONITOR AD WRNG
+            </h1>
+          </div>
           <div className="flex items-center gap-2">
             <div className="rounded-lg px-3 py-1.5 text-xl font-mono tracking-tight bg-white/5 border border-white/15 text-primary">
               {formatUtcClock(utcNow)}
@@ -275,16 +280,6 @@ export default function Dashboard() {
               <Radar className="w-8 h-8 text-primary animate-pulse" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-                MONITOR AD WRNG
-              </h1>
-              <div className="flex items-center gap-2 text-sm text-gray-300 mt-2">
-                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20">Localidade • {icao}</span>
-                <Badge variant="outline" className={error ? "bg-destructive/20 text-destructive border-destructive/50" : "bg-accent/20 text-accent border-accent/50"}>
-                  API {statusLabel}
-                </Badge>
-              </div>
               <div className="mt-3 space-y-3 max-w-2xl">
                 <div className="glass-panel rounded-xl p-3 border border-primary/30 flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -306,7 +301,7 @@ export default function Dashboard() {
             <div className="glass-panel rounded-xl p-3 border border-primary/30">
               <div className="text-[11px] text-gray-400 uppercase tracking-wider">Previsão</div>
               <div className="mt-1 text-xl font-bold text-white font-mono">TAF</div>
-              <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap break-words">{tafLine}</div>
+              <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap break-words text-justify">{tafLine}</div>
             </div>
           </div>
         </header>
