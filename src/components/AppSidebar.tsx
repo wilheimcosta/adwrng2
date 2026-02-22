@@ -17,9 +17,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const navItems = [
-  { title: "Dashboard", url: "/", icon: Activity },
-];
+const navItems = [{ title: "Dashboard", url: "/", icon: Activity }];
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -34,53 +32,71 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-border/50" collapsible="offcanvas">
-      <SidebarHeader className="px-4 py-5 border-b border-border/50">
+    <Sidebar className="border-r border-border" collapsible="offcanvas">
+      {/* Logo / Brand */}
+      <SidebarHeader className="px-5 py-5 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
-            <Radio className="w-5 h-5 text-primary" />
+          <div className="relative w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center ring-1 ring-primary/20">
+            <Radio className="w-4 h-4 text-primary" />
+            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-primary animate-pulse-glow" />
           </div>
           {!collapsed && (
-            <div>
-              <h2 className="text-sm font-semibold text-foreground tracking-tight">AeroWatch</h2>
-              <p className="text-[11px] text-muted-foreground leading-none mt-0.5">Aviation Alerts</p>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold tracking-tight text-foreground">
+                AeroWatch
+              </span>
+              <span className="text-[10px] text-muted-foreground leading-none mt-0.5">
+                Flight Operations
+              </span>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 py-3">
+      <SidebarContent className="px-3 py-4">
+        {/* ICAO Search */}
         <SidebarGroup>
-          <SidebarGroupLabel className={`text-[11px] uppercase tracking-wider text-muted-foreground font-medium ${collapsed ? "sr-only" : ""}`}>
+          <SidebarGroupLabel
+            className={`text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2 px-2 ${collapsed ? "sr-only" : ""}`}
+          >
             Localidade
           </SidebarGroupLabel>
           <SidebarGroupContent>
             {collapsed ? (
-              <div className="px-1 py-1 flex justify-center">
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+              <div className="flex justify-center py-1">
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary ring-1 ring-primary/20">
                   {icao}
                 </span>
               </div>
             ) : (
-              <div className="px-2 py-2 space-y-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>ICAO ativo:</span>
-                  <span className="font-mono text-primary font-semibold">{icao}</span>
+              <div className="px-2 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-muted-foreground">
+                    ICAO:
+                  </span>
+                  <span className="font-mono text-xs font-bold text-primary tracking-wider">
+                    {icao}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <input
                     value={inputIcao}
-                    onChange={(e) => setInputIcao(e.target.value.toUpperCase())}
+                    onChange={(e) =>
+                      setInputIcao(e.target.value.toUpperCase())
+                    }
                     onKeyDown={(e) => {
                       if (e.key === "Enter") searchIcao();
                     }}
                     placeholder="SBMQ"
                     maxLength={4}
-                    className="w-20 bg-muted/50 border border-border rounded-md px-2 py-1.5 text-sm font-bold text-foreground font-mono outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
+                    className="flex-1 min-w-0 bg-secondary border border-border rounded-md px-2.5 py-1.5 text-sm font-bold text-foreground font-mono placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/30 transition-all"
                   />
-                  <Button onClick={searchIcao} size="sm" className="h-8 px-3 text-xs font-medium">
-                    <Search className="w-3.5 h-3.5 mr-1.5" />
-                    Ir
+                  <Button
+                    onClick={searchIcao}
+                    size="sm"
+                    className="h-[34px] px-2.5 bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+                  >
+                    <Search className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               </div>
@@ -88,8 +104,11 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className={`text-[11px] uppercase tracking-wider text-muted-foreground font-medium ${collapsed ? "sr-only" : ""}`}>
+        {/* Navigation */}
+        <SidebarGroup className="mt-4">
+          <SidebarGroupLabel
+            className={`text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2 px-2 ${collapsed ? "sr-only" : ""}`}
+          >
             Menu
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -102,15 +121,17 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end={item.url === "/"}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                        className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition-all ${
                           active
-                            ? "bg-primary/10 text-primary border border-primary/20"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                            ? "bg-primary/10 text-primary ring-1 ring-primary/15"
+                            : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                         }`}
-                        activeClassName="bg-primary/10 text-primary border border-primary/20"
+                        activeClassName="bg-primary/10 text-primary ring-1 ring-primary/15"
                       >
                         <item.icon className="w-4 h-4" />
-                        {!collapsed && <span className="font-medium">{item.title}</span>}
+                        {!collapsed && (
+                          <span className="font-medium">{item.title}</span>
+                        )}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -121,11 +142,16 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="px-4 py-3 border-t border-border/50">
+      <SidebarFooter className="px-5 py-3 border-t border-border">
         <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          <div className="relative">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+            <div className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-primary animate-ping opacity-50" />
+          </div>
           {!collapsed && (
-            <span className="text-xs text-muted-foreground">Sistema Online</span>
+            <span className="text-[11px] text-muted-foreground">
+              Sistema ativo
+            </span>
           )}
         </div>
       </SidebarFooter>

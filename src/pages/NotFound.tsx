@@ -5,15 +5,26 @@ const NotFound = () => {
   const location = useLocation();
 
   useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
+    console.error(
+      "404 Error: User attempted to access non-existent route:",
+      location.pathname,
+    );
   }, [location.pathname]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center space-y-3">
-        <h1 className="text-5xl font-bold text-foreground">404</h1>
+      <div className="text-center space-y-4">
+        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
+          Erro
+        </p>
+        <h1 className="text-6xl font-bold text-foreground tabular-nums font-mono">
+          404
+        </h1>
         <p className="text-sm text-muted-foreground">Pagina nao encontrada</p>
-        <a href="/" className="inline-block text-sm text-primary hover:text-primary/80 underline underline-offset-4 transition-colors">
+        <a
+          href="/"
+          className="inline-block text-sm text-primary hover:text-primary/80 underline underline-offset-4 transition-colors"
+        >
           Voltar ao Dashboard
         </a>
       </div>
