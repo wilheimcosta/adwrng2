@@ -77,8 +77,9 @@ export default function Dashboard() {
   }, [statusData?.reportText]);
   const tafLine = useMemo(() => {
     const report = statusData?.reportText ?? "";
-    const lines = report.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    return lines.find((item) => /\bTAF\b/i.test(item)) ?? "--";
+    const normalized = report.replace(/\r/g, "");
+    const fullMatch = normalized.match(/TAF[\s\S]*?=/i);
+    return fullMatch ? fullMatch[0].trim() : "--";
   }, [statusData?.reportText]);
 
   const initAudio = () => {
@@ -296,7 +297,8 @@ export default function Dashboard() {
                   )}
                 </div>
                 <div className="glass-panel rounded-xl p-3 border border-primary/30">
-                  <div className="text-[11px] text-gray-400 uppercase tracking-wider">TAF</div>
+                  <div className="text-[11px] text-gray-400 uppercase tracking-wider">Previsao</div>
+                  <div className="mt-1 text-xl font-bold text-white font-mono">TAF</div>
                   <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap break-words">{tafLine}</div>
                 </div>
               </div>
