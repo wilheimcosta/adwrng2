@@ -302,9 +302,9 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="w-full md:max-w-sm">
+          <div className="w-full md:max-w-3xl">
             <div className="glass-panel rounded-xl p-3 border border-primary/30">
-              <div className="text-[11px] text-gray-400 uppercase tracking-wider">Previsao</div>
+              <div className="text-[11px] text-gray-400 uppercase tracking-wider">Previsão</div>
               <div className="mt-1 text-xl font-bold text-white font-mono">TAF</div>
               <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap break-words">{tafLine}</div>
             </div>
