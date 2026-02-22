@@ -10,10 +10,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     <SidebarProvider defaultOpen>
       <AppSidebar />
       <SidebarInset>
+        <div className="flex items-center h-12 px-4 border-b border-border/50">
+          <SidebarTrigger className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50" />
+        </div>
         <main className="flex-1 p-4 md:p-6 overflow-auto">
-          <div className="mb-3">
-            <SidebarTrigger className="h-8 w-8 border border-primary/30 bg-card/50 hover:bg-primary/15" />
-          </div>
           {children}
         </main>
       </SidebarInset>
