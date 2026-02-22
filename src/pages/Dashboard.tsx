@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, BellRing, CheckCircle2, MapPin, Radar, Radio, Search, Volume2, VolumeX } from "lucide-react";
+import { AlertCircle, BellRing, CheckCircle2, Radar, Radio, Volume2, VolumeX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useIcao } from "@/contexts/icao-context";
 import { fetchAerodromeStatusDetails, mapFlightRuleFromFlag } from "@/lib/redemet";
 
 const CHECK_INTERVAL_SECONDS = 300;
@@ -26,13 +27,7 @@ function flightRuleBadgeClass(rule: "VFR" | "IFR" | "LIFR") {
 }
 
 export default function Dashboard() {
-  const [icao, setIcao] = useState(() => {
-    if (typeof window === "undefined") return "SBMQ";
-    const saved = localStorage.getItem("adwrng_icao");
-    const normalized = String(saved ?? "SBMQ").trim().toUpperCase();
-    return /^[A-Z]{4}$/.test(normalized) ? normalized : "SBMQ";
-  });
-  const [inputIcao, setInputIcao] = useState(icao);
+  const { icao } = useIcao();
   const [utcNow, setUtcNow] = useState(() => new Date());
   const [nextCheck, setNextCheck] = useState(CHECK_INTERVAL_SECONDS);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -68,6 +63,18 @@ export default function Dashboard() {
     .toString()
     .padStart(2, "0")}:${(nextCheck % 60).toString().padStart(2, "0")}`;
   const ringOffset = CIRCUMFERENCE - (nextCheck / CHECK_INTERVAL_SECONDS) * CIRCUMFERENCE;
+  const reportType = useMemo(() => {
+    const report = statusData?.reportText ?? "";
+    if (/\bSPECI\b/i.test(report)) return "SPECI";
+    if (/\bMETAR\b/i.test(report)) return "METAR";
+    return "N/D";
+  }, [statusData?.reportText]);
+  const reportLine = useMemo(() => {
+    const report = statusData?.reportText ?? "";
+    const lines = report.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const line = lines.find((item) => /\b(METAR|SPECI)\b/i.test(item)) ?? lines[0] ?? "--";
+    return line;
+  }, [statusData?.reportText]);
 
   const initAudio = () => {
     if (!audioCtxRef.current) {
@@ -176,8 +183,7 @@ export default function Dashboard() {
   }, [nextCheck, refetch]);
 
   useEffect(() => {
-    localStorage.setItem("adwrng_icao", icao);
-    setInputIcao(icao);
+    setNextCheck(CHECK_INTERVAL_SECONDS);
   }, [icao]);
 
   useEffect(() => {
@@ -234,14 +240,6 @@ export default function Dashboard() {
     return "Online";
   }, [error, isFetching]);
 
-  const searchIcao = () => {
-    const normalized = inputIcao.trim().toUpperCase().replace(/[^A-Z]/g, "");
-    if (/^[A-Z]{4}$/.test(normalized)) {
-      setIcao(normalized);
-      setNextCheck(CHECK_INTERVAL_SECONDS);
-    }
-  };
-
   return (
     <div className="relative">
       <section className="w-full mb-4 glass-panel border border-primary/25 rounded-2xl px-4 py-3">
@@ -294,25 +292,10 @@ export default function Dashboard() {
           <div className="glass-panel rounded-xl p-4 flex items-center justify-between border border-primary/30">
             <div className="w-full">
               <div className="text-xs text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                Localidade (ICAO)
+                Tipo de Mensagem
               </div>
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  value={inputIcao}
-                  onChange={(e) => setInputIcao(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") searchIcao();
-                  }}
-                  placeholder="SBMQ"
-                  maxLength={4}
-                  className="w-28 bg-transparent border-b border-primary text-2xl font-bold text-white font-mono outline-none"
-                />
-                <Button onClick={searchIcao} size="sm" className="h-8 px-3">
-                  <Search className="w-4 h-4 mr-1" />
-                  Pesquisar
-                </Button>
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">Ativo: {icao}</div>
+              <div className="mt-2 text-2xl font-bold text-white font-mono">{reportType}</div>
+              <div className="mt-1 text-xs text-muted-foreground truncate">{reportLine}</div>
             </div>
             <div className="flex items-center gap-2">
               {flightRule && (
@@ -320,7 +303,6 @@ export default function Dashboard() {
                   {flightRule}
                 </Badge>
               )}
-              <MapPin className="text-primary w-5 h-5" />
             </div>
           </div>
 

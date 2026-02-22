@@ -1,5 +1,7 @@
-import { Activity, Radio } from "lucide-react";
+import { Activity, Radio, Search } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { Button } from "@/components/ui/button";
+import { useIcao } from "@/contexts/icao-context";
 import { useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -22,6 +24,7 @@ const navItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
+  const { icao, inputIcao, setInputIcao, searchIcao } = useIcao();
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
 
@@ -47,6 +50,43 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
+            Localidade
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            {collapsed ? (
+              <div className="px-1 py-1 flex justify-center">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30">
+                  {icao}
+                </span>
+              </div>
+            ) : (
+              <div className="px-2 py-1 space-y-2">
+                <div className="text-[11px] text-muted-foreground uppercase tracking-wider">
+                  ICAO ativo: <span className="font-mono text-primary">{icao}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={inputIcao}
+                    onChange={(e) => setInputIcao(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") searchIcao();
+                    }}
+                    placeholder="SBMQ"
+                    maxLength={4}
+                    className="w-20 bg-transparent border-b border-primary text-base font-bold text-white font-mono outline-none"
+                  />
+                  <Button onClick={searchIcao} size="sm" className="h-7 px-2.5">
+                    <Search className="w-3.5 h-3.5 mr-1" />
+                    Ir
+                  </Button>
+                </div>
+              </div>
+            )}
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         <SidebarGroup>
           <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
             Navegação
