@@ -11,8 +11,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <AppSidebar />
       <SidebarInset>
         <main className="flex-1 p-4 md:p-6 overflow-auto">
-          <div className="mb-3 md:hidden">
-            <SidebarTrigger />
+          <div className="mb-3">
+            <SidebarTrigger className="h-8 w-8 border border-primary/30 bg-card/50 hover:bg-primary/15" />
           </div>
           {children}
         </main>

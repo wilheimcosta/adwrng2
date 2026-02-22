@@ -34,7 +34,7 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className={`glass-panel border-r ${collapsed ? "w-16" : "w-64"} transition-all`} collapsible="icon">
+    <Sidebar className="glass-panel border-r w-64 transition-all" collapsible="offcanvas">
       <SidebarHeader className="p-4 border-b border-primary/20">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center neon-border">

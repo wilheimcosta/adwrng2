@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useIcao } from "@/contexts/icao-context";
 import { fetchAerodromeStatusDetails, mapFlightRuleFromFlag } from "@/lib/redemet";
 
-const CHECK_INTERVAL_SECONDS = 300;
+const CHECK_INTERVAL_SECONDS = 30;
 const CIRCLE_RADIUS = 14;
 const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
@@ -74,6 +74,11 @@ export default function Dashboard() {
     const lines = report.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     const line = lines.find((item) => /\b(METAR|SPECI)\b/i.test(item)) ?? lines[0] ?? "--";
     return line;
+  }, [statusData?.reportText]);
+  const tafLine = useMemo(() => {
+    const report = statusData?.reportText ?? "";
+    const lines = report.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    return lines.find((item) => /\bTAF\b/i.test(item)) ?? "--";
   }, [statusData?.reportText]);
 
   const initAudio = () => {
@@ -277,6 +282,24 @@ export default function Dashboard() {
                   API {statusLabel}
                 </Badge>
               </div>
+              <div className="mt-3 space-y-3 max-w-2xl">
+                <div className="glass-panel rounded-xl p-3 border border-primary/30 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-gray-400 uppercase tracking-wider">METAR / SPECI</div>
+                    <div className="mt-1 text-xl font-bold text-white font-mono">{reportType}</div>
+                    <div className="mt-1 text-xs text-muted-foreground truncate">{reportLine}</div>
+                  </div>
+                  {flightRule && (
+                    <Badge variant="outline" className={`${flightRuleBadgeClass(flightRule)} animate-pulse px-4 py-1.5 text-sm font-bold tracking-wide`}>
+                      {flightRule}
+                    </Badge>
+                  )}
+                </div>
+                <div className="glass-panel rounded-xl p-3 border border-primary/30">
+                  <div className="text-[11px] text-gray-400 uppercase tracking-wider">TAF</div>
+                  <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap break-words">{tafLine}</div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -288,24 +311,7 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="glass-panel rounded-xl p-4 flex items-center justify-between border border-primary/30">
-            <div className="w-full">
-              <div className="text-xs text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                Tipo de Mensagem
-              </div>
-              <div className="mt-2 text-2xl font-bold text-white font-mono">{reportType}</div>
-              <div className="mt-1 text-xs text-muted-foreground truncate">{reportLine}</div>
-            </div>
-            <div className="flex items-center gap-2">
-              {flightRule && (
-                <Badge variant="outline" className={`${flightRuleBadgeClass(flightRule)} animate-pulse px-5 py-2 text-base font-bold tracking-wide`}>
-                  {flightRule}
-                </Badge>
-              )}
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <div className="glass-panel rounded-xl p-4 flex items-center justify-between">
             <div>
               <div className="text-xs text-gray-400 uppercase tracking-wider">Próxima Checagem</div>
