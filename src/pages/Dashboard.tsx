@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, BellRing, CheckCircle2, Radar, Radio, Volume2, VolumeX } from "lucide-react";
+import { AlertCircle, BellRing, CheckCircle2, Clock, Plane, Volume2, VolumeX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,9 +21,9 @@ function formatUtcClock(date: Date): string {
 }
 
 function flightRuleBadgeClass(rule: "VFR" | "IFR" | "LIFR") {
-  if (rule === "VFR") return "bg-emerald-500/20 text-emerald-300 border-emerald-400/60";
-  if (rule === "IFR") return "bg-yellow-400/25 text-yellow-200 border-yellow-300/70";
-  return "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-400/60";
+  if (rule === "VFR") return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+  if (rule === "IFR") return "bg-amber-500/15 text-amber-400 border-amber-500/30";
+  return "bg-red-500/15 text-red-400 border-red-500/30";
 }
 
 export default function Dashboard() {
@@ -241,215 +241,238 @@ export default function Dashboard() {
   }, [showAlarmOverlay]);
 
   const statusLabel = useMemo(() => {
-    if (error) return "Indisponível";
+    if (error) return "Indisponivel";
     if (isFetching) return "Atualizando";
     return "Online";
   }, [error, isFetching]);
 
   return (
-    <div className="relative">
-      <section className="w-full mb-4 glass-panel border border-primary/25 rounded-2xl px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center neon-border">
-              <Radio className="w-5 h-5 text-primary animate-pulse" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold glow-text leading-none">AeroWatch</p>
-              <p className="text-sm text-muted-foreground">Aviation Alerts</p>
-            </div>
+    <div className="relative max-w-6xl mx-auto space-y-5">
+      {/* Header bar */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+            <Plane className="w-5 h-5 text-primary" />
           </div>
-          <div className="flex-1 text-center px-2">
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-              MONITOR AD WRNG
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg px-3 py-1.5 text-xl font-mono tracking-tight bg-white/5 border border-white/15 text-primary">
-              {formatUtcClock(utcNow)}
-            </div>
-            <div className="text-[10px] font-bold px-2 py-1 rounded bg-white/5 border border-white/10 uppercase tracking-widest text-gray-400">UTC</div>
+          <div>
+            <h1 className="text-lg font-semibold text-foreground tracking-tight text-balance">Monitor AD WRNG</h1>
+            <p className="text-xs text-muted-foreground">Monitoramento em tempo real</p>
           </div>
         </div>
-      </section>
-
-      <main className="w-full glass-panel rounded-3xl p-8 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <header className="flex flex-col md:flex-row md:justify-between md:items-center gap-6 mb-10 border-b border-white/10 pb-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-primary/10 rounded-xl rounded-tl-none border border-primary/20">
-              <Radar className="w-8 h-8 text-primary animate-pulse" />
-            </div>
-            <div>
-              <div className="mt-3 space-y-3 max-w-2xl">
-                <div className="glass-panel rounded-xl p-3 border border-primary/30 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-[11px] text-gray-400 uppercase tracking-wider">METAR / SPECI</div>
-                    <div className="mt-1 text-xl font-bold text-white font-mono">{reportType}</div>
-                    <div className="mt-1 text-xs text-muted-foreground truncate">{reportLine}</div>
-                  </div>
-                  {flightRule && (
-                    <Badge variant="outline" className={`${flightRuleBadgeClass(flightRule)} animate-pulse px-4 py-1.5 text-sm font-bold tracking-wide`}>
-                      {flightRule}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Clock className="w-3.5 h-3.5" />
+            <span>UTC</span>
           </div>
-
-          <div className="w-full md:max-w-3xl">
-            <div className="glass-panel rounded-xl p-3 border border-primary/30">
-              <div className="text-[11px] text-gray-400 uppercase tracking-wider">Previsão</div>
-              <div className="mt-1 text-xl font-bold text-white font-mono">TAF</div>
-              <div className="mt-1 text-xs text-muted-foreground font-mono leading-6 whitespace-pre-wrap break-words text-left [text-wrap:pretty]">
-                {tafLine}
-              </div>
-            </div>
+          <div className="font-mono text-sm font-semibold text-foreground tabular-nums bg-muted/50 rounded-md px-3 py-1.5 border border-border">
+            {formatUtcClock(utcNow)}
           </div>
-        </header>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          <div className="glass-panel rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <div className="text-xs text-gray-400 uppercase tracking-wider">Próxima Checagem</div>
-              <div className="text-2xl font-bold font-mono text-primary mt-1">{countdownDisplay}</div>
-            </div>
-            <div className="relative w-8 h-8">
-              <svg className="transform -rotate-90 w-8 h-8">
-                <circle cx="16" cy="16" r={CIRCLE_RADIUS} stroke="currentColor" strokeWidth="3" fill="transparent" className="text-gray-800" />
-                <circle
-                  cx="16"
-                  cy="16"
-                  r={CIRCLE_RADIUS}
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  fill="transparent"
-                  strokeDasharray={CIRCUMFERENCE}
-                  strokeDashoffset={ringOffset}
-                  className="text-primary transition-all duration-1000 ease-linear"
-                />
-              </svg>
-            </div>
+          <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border ${
+            error ? "text-destructive border-destructive/20 bg-destructive/5" :
+            isFetching ? "text-amber-400 border-amber-400/20 bg-amber-400/5" :
+            "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
+          }`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${
+              error ? "bg-destructive" : isFetching ? "bg-amber-400" : "bg-emerald-400"
+            }`} />
+            {statusLabel}
           </div>
+        </div>
+      </header>
 
-          <button
-            onClick={() => {
-              const next = !audioEnabled;
-              setAudioEnabled(next);
-              if (next) {
-                playBeep(0.1, 880);
-              } else {
-                stopAlarm();
-              }
-            }}
-            className={`rounded-xl p-4 flex items-center justify-between transition-all duration-300 border ${
-              audioEnabled ? "bg-primary/20 border-primary/50 text-white" : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
-            }`}
-          >
-            <div className="text-left">
-              <div className="text-xs uppercase tracking-wider">{audioEnabled ? "Audio Ativo" : "Audio Mudo"}</div>
-              <div className="text-sm font-semibold mt-1">{audioEnabled ? "Monitorando" : "Clique para ativar"}</div>
-            </div>
+      {/* METAR / TAF Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* METAR Card */}
+        <div className="rounded-lg border border-border bg-card/60 p-4">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${audioEnabled ? "bg-emerald-400" : "bg-red-400"}`} />
-              {audioEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">METAR / SPECI</span>
+              <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono border-border text-muted-foreground">
+                {reportType}
+              </Badge>
             </div>
-          </button>
+            {flightRule && (
+              <Badge variant="outline" className={`${flightRuleBadgeClass(flightRule)} text-xs font-bold px-2.5 py-0.5`}>
+                {flightRule}
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-foreground/80 font-mono leading-relaxed break-all">
+            {reportLine}
+          </p>
         </div>
 
-        <div className="relative min-h-[200px]">
-          {(isLoading || isFetching) && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-10 rounded-xl">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                <div className="text-xs text-primary tracking-widest uppercase">Consultando API...</div>
-              </div>
-            </div>
-          )}
+        {/* TAF Card */}
+        <div className="rounded-lg border border-border bg-card/60 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">TAF</span>
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono border-border text-muted-foreground">
+              Previsao
+            </Badge>
+          </div>
+          <p className="text-xs text-foreground/80 font-mono leading-relaxed whitespace-pre-wrap break-words">
+            {tafLine}
+          </p>
+        </div>
+      </div>
 
-          {error ? (
-            <Card className="bg-gradient-to-br from-red-900/40 to-black/60 border border-red-500/30 rounded-2xl p-6">
-              <CardContent className="p-0 flex items-center gap-4">
-                <AlertCircle className="w-10 h-10 text-red-500" />
-                <div>
-                  <p className="text-lg font-semibold text-red-100">Falha na consulta</p>
-                  <p className="text-sm text-red-200/80">{error instanceof Error ? error.message : "Erro inesperado"}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : list.length === 0 ? (
-            <div className="rounded-2xl p-12 text-center border-dashed border-2 border-emerald-500/20 flex flex-col items-center justify-center gap-4 bg-emerald-950/20">
-              <div className="p-4 bg-emerald-500/10 rounded-full">
-                <CheckCircle2 className="w-12 h-12 text-green-500" />
+      {/* Controls row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Countdown */}
+        <div className="flex items-center justify-between rounded-lg border border-border bg-card/60 px-4 py-3">
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Proxima checagem</div>
+            <div className="text-xl font-bold font-mono text-primary mt-1 tabular-nums">{countdownDisplay}</div>
+          </div>
+          <div className="relative w-9 h-9">
+            <svg className="transform -rotate-90 w-9 h-9" viewBox="0 0 32 32">
+              <circle cx="16" cy="16" r={CIRCLE_RADIUS} stroke="hsl(225 15% 16%)" strokeWidth="2.5" fill="transparent" />
+              <circle
+                cx="16"
+                cy="16"
+                r={CIRCLE_RADIUS}
+                stroke="hsl(185 80% 50%)"
+                strokeWidth="2.5"
+                fill="transparent"
+                strokeLinecap="round"
+                strokeDasharray={CIRCUMFERENCE}
+                strokeDashoffset={ringOffset}
+                className="transition-all duration-1000 ease-linear"
+              />
+            </svg>
+          </div>
+        </div>
+
+        {/* Audio toggle */}
+        <button
+          onClick={() => {
+            const next = !audioEnabled;
+            setAudioEnabled(next);
+            if (next) {
+              playBeep(0.1, 880);
+            } else {
+              stopAlarm();
+            }
+          }}
+          className={`flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${
+            audioEnabled
+              ? "bg-primary/5 border-primary/20 text-foreground"
+              : "bg-card/60 border-border text-muted-foreground hover:bg-muted/30"
+          }`}
+        >
+          <div className="text-left">
+            <div className="text-[11px] font-medium uppercase tracking-wider">
+              {audioEnabled ? "Audio ativo" : "Audio mudo"}
+            </div>
+            <div className="text-sm font-semibold mt-1">
+              {audioEnabled ? "Monitorando" : "Clique para ativar"}
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span className={`w-2 h-2 rounded-full ${audioEnabled ? "bg-emerald-400" : "bg-red-400"}`} />
+            {audioEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          </div>
+        </button>
+      </div>
+
+      {/* Warnings area */}
+      <div className="relative min-h-[200px]">
+        {(isLoading || isFetching) && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm z-10 rounded-lg">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <div className="text-[11px] text-muted-foreground uppercase tracking-widest">Consultando API...</div>
+            </div>
+          </div>
+        )}
+
+        {error ? (
+          <Card className="border-destructive/20 bg-destructive/5 rounded-lg">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-5 h-5 text-destructive" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-200">Nenhum Aviso Vigente</h3>
-              <p className="text-gray-300 max-w-sm">
-                O aerodromo de <b className="text-white">{icao}</b> esta operando normalmente sem avisos de aerodromo reportados na API REDEMET.
+              <div>
+                <p className="text-sm font-semibold text-foreground">Falha na consulta</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{error instanceof Error ? error.message : "Erro inesperado"}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : list.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-emerald-500/20 bg-emerald-500/5 p-10 flex flex-col items-center justify-center gap-3 text-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Nenhum Aviso Vigente</h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm leading-relaxed">
+                O aerodromo <span className="font-mono text-primary font-semibold">{icao}</span> esta operando normalmente sem avisos reportados na API REDEMET.
               </p>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {list.map((aviso, idx) => (
-                <div
-                  key={`${idx}`}
-                  className="bg-gradient-to-br from-red-900/40 to-black/60 border border-red-500/30 rounded-2xl p-6 relative overflow-hidden group hover:border-red-500/50 transition-all duration-500"
-                >
-                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-red-500/20 blur-3xl rounded-full group-hover:bg-red-500/30 transition-all" />
-
-                  <div className="flex flex-col md:flex-row gap-6 relative z-10">
-                    <div className="flex-shrink-0">
-                      <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20 shadow-[0_0_15px_rgba(255,0,0,0.2)]">
-                        <AlertCircle className="w-8 h-8 text-red-500" />
-                      </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {list.map((aviso, idx) => (
+              <div
+                key={`${idx}`}
+                className="rounded-lg border border-destructive/20 bg-destructive/5 p-5 relative overflow-hidden"
+              >
+                <div className="flex flex-col md:flex-row gap-5">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 rounded-lg bg-destructive/10 flex items-center justify-center border border-destructive/20">
+                      <AlertCircle className="w-6 h-6 text-destructive" />
                     </div>
-                    <div className="flex-grow space-y-4">
-                      <div className="flex justify-between items-start gap-3">
-                        <h3 className="text-xl md:text-2xl font-bold text-white tracking-wide">ALERTA DE AVISO DE AERODROMO</h3>
-                        <div className="px-3 py-1 rounded text-xs font-bold uppercase animate-pulse bg-gradient-to-r from-red-500 to-amber-300 text-black border border-white/20">
-                          Vigente
-                        </div>
-                      </div>
-                      <div className="bg-black/40 p-5 rounded-lg border-l-4 border-red-500 font-mono text-sm text-red-100 leading-relaxed whitespace-pre-wrap">
-                        {aviso.mensagem}
-                      </div>
+                  </div>
+                  <div className="flex-grow space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">Alerta de Aviso de Aerodromo</h3>
+                      <Badge className="bg-destructive text-destructive-foreground text-[10px] font-bold uppercase animate-pulse">
+                        Vigente
+                      </Badge>
+                    </div>
+                    <div className="bg-background/50 p-4 rounded-md border-l-2 border-destructive font-mono text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                      {aviso.mensagem}
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <footer className="mt-8 text-center text-xs text-gray-500 border-t border-white/5 pt-4 flex flex-col md:flex-row gap-2 justify-between">
-          <span>Desenvolvido com Tecnologia Antigravity</span>
-          <span>Dados Oficiais: REDEMET API</span>
-        </footer>
-      </main>
-
-      {showAlarmOverlay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-          <div className="max-w-lg w-full bg-[#1a0505] border-2 border-red-500/80 rounded-3xl p-8 text-center shadow-[0_0_100px_rgba(255,0,0,0.4)] relative overflow-hidden animate-pulse">
-            <div
-              className="absolute inset-0 opacity-10"
-              style={{
-                background: "repeating-linear-gradient(45deg, transparent, transparent 10px, #ff0000 10px, #ff0000 20px)",
-              }}
-            />
-            <div className="relative z-10 flex flex-col items-center gap-6">
-              <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center animate-bounce shadow-[0_0_30px_rgba(255,0,0,0.6)]">
-                <BellRing className="w-12 h-12 text-white" />
               </div>
-              <h2 className="text-4xl font-black text-white uppercase tracking-tighter">Atencao Piloto</h2>
-              <p className="text-red-200 text-lg">Novo aviso meteorologico detectado para <b>{icao}</b>.</p>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <footer className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-4 border-t border-border/50 text-[11px] text-muted-foreground">
+        <span>Desenvolvido com Tecnologia Antigravity</span>
+        <span>Dados Oficiais: REDEMET API</span>
+      </footer>
+
+      {/* Alarm overlay */}
+      {showAlarmOverlay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-md p-4">
+          <div className="max-w-md w-full bg-card border border-destructive/30 rounded-xl p-8 text-center shadow-2xl">
+            <div className="flex flex-col items-center gap-5">
+              <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center animate-bounce border border-destructive/20">
+                <BellRing className="w-8 h-8 text-destructive" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-foreground uppercase tracking-tight">Atencao Piloto</h2>
+                <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                  Novo aviso meteorologico detectado para <span className="font-mono text-primary font-semibold">{icao}</span>.
+                </p>
+              </div>
 
               {audioBlocked && (
-                <div className="bg-yellow-500/20 border border-yellow-500/50 p-3 rounded-xl animate-pulse">
-                  <p className="text-yellow-200 font-bold uppercase text-sm">Audio bloqueado pelo navegador</p>
-                  <p className="text-yellow-100/70 text-xs mt-1">Clique na tela para habilitar o som</p>
+                <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg w-full">
+                  <p className="text-amber-400 font-semibold uppercase text-xs">Audio bloqueado pelo navegador</p>
+                  <p className="text-amber-400/60 text-[11px] mt-0.5">Clique na tela para habilitar o som</p>
                 </div>
               )}
 
-              <Button onClick={stopAlarm} className="w-full py-6 bg-white text-red-900 hover:bg-gray-200 font-bold text-xl rounded-xl uppercase">
+              <Button
+                onClick={stopAlarm}
+                className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-semibold text-sm rounded-lg uppercase tracking-wide"
+              >
                 Reconhecer e Silenciar
               </Button>
             </div>

@@ -34,37 +34,38 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="glass-panel border-r w-64 transition-all" collapsible="offcanvas">
-      <SidebarHeader className="p-4 border-b border-primary/20">
+    <Sidebar className="border-r border-border/50" collapsible="offcanvas">
+      <SidebarHeader className="px-4 py-5 border-b border-border/50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center neon-border">
-            <Radio className="w-6 h-6 text-primary animate-glow-pulse" />
+          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+            <Radio className="w-5 h-5 text-primary" />
           </div>
           {!collapsed && (
             <div>
-              <h2 className="text-lg font-bold glow-text">AeroWatch</h2>
-              <p className="text-xs text-muted-foreground">Aviation Alerts</p>
+              <h2 className="text-sm font-semibold text-foreground tracking-tight">AeroWatch</h2>
+              <p className="text-[11px] text-muted-foreground leading-none mt-0.5">Aviation Alerts</p>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="px-2 py-3">
         <SidebarGroup>
-          <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
+          <SidebarGroupLabel className={`text-[11px] uppercase tracking-wider text-muted-foreground font-medium ${collapsed ? "sr-only" : ""}`}>
             Localidade
           </SidebarGroupLabel>
           <SidebarGroupContent>
             {collapsed ? (
               <div className="px-1 py-1 flex justify-center">
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
                   {icao}
                 </span>
               </div>
             ) : (
-              <div className="px-2 py-1 space-y-2">
-                <div className="text-[11px] text-muted-foreground uppercase tracking-wider">
-                  ICAO ativo: <span className="font-mono text-primary">{icao}</span>
+              <div className="px-2 py-2 space-y-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>ICAO ativo:</span>
+                  <span className="font-mono text-primary font-semibold">{icao}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -75,10 +76,10 @@ export function AppSidebar() {
                     }}
                     placeholder="SBMQ"
                     maxLength={4}
-                    className="w-20 bg-transparent border-b border-primary text-base font-bold text-white font-mono outline-none"
+                    className="w-20 bg-muted/50 border border-border rounded-md px-2 py-1.5 text-sm font-bold text-foreground font-mono outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
                   />
-                  <Button onClick={searchIcao} size="sm" className="h-7 px-2.5">
-                    <Search className="w-3.5 h-3.5 mr-1" />
+                  <Button onClick={searchIcao} size="sm" className="h-8 px-3 text-xs font-medium">
+                    <Search className="w-3.5 h-3.5 mr-1.5" />
                     Ir
                   </Button>
                 </div>
@@ -88,8 +89,8 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
-            Navegação
+          <SidebarGroupLabel className={`text-[11px] uppercase tracking-wider text-muted-foreground font-medium ${collapsed ? "sr-only" : ""}`}>
+            Menu
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -101,14 +102,14 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end={item.url === "/"}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                           active
-                            ? "bg-primary/20 text-primary neon-border"
-                            : "hover:bg-muted/50"
+                            ? "bg-primary/10 text-primary border border-primary/20"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                         }`}
-                        activeClassName="bg-primary/20 text-primary neon-border"
+                        activeClassName="bg-primary/10 text-primary border border-primary/20"
                       >
-                        <item.icon className={`w-5 h-5 ${active ? "animate-glow-pulse" : ""}`} />
+                        <item.icon className="w-4 h-4" />
                         {!collapsed && <span className="font-medium">{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
@@ -120,9 +121,9 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-primary/20">
+      <SidebarFooter className="px-4 py-3 border-t border-border/50">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-accent animate-glow-pulse" />
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           {!collapsed && (
             <span className="text-xs text-muted-foreground">Sistema Online</span>
           )}
