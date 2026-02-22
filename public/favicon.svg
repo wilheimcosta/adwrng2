@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <rect width="24" height="24" rx="5" fill="#08161a" />
+  <g fill="none" stroke="#00f2ff" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke-width="1.8" d="M4.9 19.1c-3.9-3.9-3.9-10.3 0-14.2">
+      <animate attributeName="opacity" values="1;0.4;1" dur="1.2s" repeatCount="indefinite" />
+    </path>
+    <path stroke-width="1.8" d="M19.1 4.9c3.9 3.9 3.9 10.3 0 14.2">
+      <animate attributeName="opacity" values="1;0.4;1" dur="1.2s" repeatCount="indefinite" />
+    </path>
+    <path stroke-width="1.8" d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5">
+      <animate attributeName="opacity" values="1;0.55;1" dur="1s" repeatCount="indefinite" />
+    </path>
+    <path stroke-width="1.8" d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5">
+      <animate attributeName="opacity" values="1;0.55;1" dur="1s" repeatCount="indefinite" />
+    </path>
+    <circle cx="12" cy="12" r="2.1" fill="#00f2ff">
+      <animate attributeName="opacity" values="1;0.35;1" dur="0.9s" repeatCount="indefinite" />
+    </circle>
+  </g>
+</svg>
