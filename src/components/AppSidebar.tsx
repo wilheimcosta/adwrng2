@@ -32,21 +32,22 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-border" collapsible="offcanvas">
-      {/* Logo / Brand */}
-      <SidebarHeader className="px-5 py-5 border-b border-border">
+    <Sidebar className="border-r border-border/60" collapsible="offcanvas">
+      {/* Brand */}
+      <SidebarHeader className="px-5 py-5 border-b border-border/60">
         <div className="flex items-center gap-3">
-          <div className="relative w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center ring-1 ring-primary/20">
+          <div className="relative w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
             <Radio className="w-4 h-4 text-primary" />
-            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-primary animate-pulse-glow" />
+            {/* Animated glow ring */}
+            <div className="absolute inset-0 rounded-lg border border-primary/20 animate-pulse-glow" />
           </div>
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="text-sm font-semibold tracking-tight text-foreground">
+              <span className="text-sm font-bold tracking-tight text-foreground">
                 AeroWatch
               </span>
-              <span className="text-[10px] text-muted-foreground leading-none mt-0.5">
-                Flight Operations
+              <span className="text-[10px] font-mono text-primary/70 leading-none mt-0.5 tracking-wider">
+                SYSTEM ACTIVE
               </span>
             </div>
           )}
@@ -57,14 +58,14 @@ export function AppSidebar() {
         {/* ICAO Search */}
         <SidebarGroup>
           <SidebarGroupLabel
-            className={`text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2 px-2 ${collapsed ? "sr-only" : ""}`}
+            className={`text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-medium mb-2 px-2 ${collapsed ? "sr-only" : ""}`}
           >
             Localidade
           </SidebarGroupLabel>
           <SidebarGroupContent>
             {collapsed ? (
               <div className="flex justify-center py-1">
-                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary ring-1 ring-primary/20">
+                <span className="text-[10px] font-mono font-bold px-2 py-1 rounded bg-primary/10 text-primary border border-primary/20">
                   {icao}
                 </span>
               </div>
@@ -74,7 +75,7 @@ export function AppSidebar() {
                   <span className="text-[11px] text-muted-foreground">
                     ICAO:
                   </span>
-                  <span className="font-mono text-xs font-bold text-primary tracking-wider">
+                  <span className="font-mono text-xs font-bold text-primary tracking-wider glow-text">
                     {icao}
                   </span>
                 </div>
@@ -89,12 +90,12 @@ export function AppSidebar() {
                     }}
                     placeholder="SBMQ"
                     maxLength={4}
-                    className="flex-1 min-w-0 bg-secondary border border-border rounded-md px-2.5 py-1.5 text-sm font-bold text-foreground font-mono placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/30 transition-all"
+                    className="flex-1 min-w-0 bg-muted border border-border rounded-md px-2.5 py-1.5 text-sm font-bold text-foreground font-mono placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/30 transition-all"
                   />
                   <Button
                     onClick={searchIcao}
                     size="sm"
-                    className="h-[34px] px-2.5 bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+                    className="h-[34px] px-2.5 bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20 shrink-0"
                   >
                     <Search className="w-3.5 h-3.5" />
                   </Button>
@@ -107,7 +108,7 @@ export function AppSidebar() {
         {/* Navigation */}
         <SidebarGroup className="mt-4">
           <SidebarGroupLabel
-            className={`text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2 px-2 ${collapsed ? "sr-only" : ""}`}
+            className={`text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-medium mb-2 px-2 ${collapsed ? "sr-only" : ""}`}
           >
             Menu
           </SidebarGroupLabel>
@@ -123,10 +124,10 @@ export function AppSidebar() {
                         end={item.url === "/"}
                         className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition-all ${
                           active
-                            ? "bg-primary/10 text-primary ring-1 ring-primary/15"
-                            : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                            ? "bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_hsl(190_95%_55%/0.08)]"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
                         }`}
-                        activeClassName="bg-primary/10 text-primary ring-1 ring-primary/15"
+                        activeClassName="bg-primary/10 text-primary"
                       >
                         <item.icon className="w-4 h-4" />
                         {!collapsed && (
@@ -142,15 +143,15 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="px-5 py-3 border-t border-border">
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-            <div className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-primary animate-ping opacity-50" />
+      <SidebarFooter className="px-5 py-3 border-t border-border/60">
+        <div className="flex items-center gap-2.5">
+          <div className="relative flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-primary" />
+            <div className="absolute w-2 h-2 rounded-full bg-primary animate-ping opacity-40" />
           </div>
           {!collapsed && (
-            <span className="text-[11px] text-muted-foreground">
-              Sistema ativo
+            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+              SYS ONLINE
             </span>
           )}
         </div>
