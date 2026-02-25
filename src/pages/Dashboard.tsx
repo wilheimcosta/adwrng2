@@ -300,7 +300,7 @@ export default function Dashboard() {
   /* ───────────────────── Render ───────────────────── */
 
   return (
-    <div className="relative max-w-6xl mx-auto space-y-5">
+    <div className="relative max-w-6xl mx-auto space-y-5 font-sans text-[15px] md:text-base">
       {/* ── Header Section ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -318,10 +318,10 @@ export default function Dashboard() {
             <div className="absolute bottom-0 right-0 h-2 w-px bg-primary/40" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-foreground tracking-tight text-balance">
+            <h1 className="text-lg md:text-xl font-extrabold text-foreground tracking-tight text-balance">
               Monitor AD WRNG
             </h1>
-            <p className="text-[11px] text-muted-foreground font-mono">
+            <p className="text-sm text-muted-foreground font-mono">
               {"// "}
               <span className="text-primary font-semibold">{icao}</span>
               {" :: real-time monitoring"}
@@ -334,10 +334,10 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 bg-card rounded-lg px-3.5 py-2 border border-border/60">
             <Clock className="w-3.5 h-3.5 text-primary/60" />
             <div className="flex items-baseline gap-1.5">
-              <span className="text-[9px] font-mono uppercase tracking-[0.15em] text-muted-foreground">
+              <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground">
                 UTC
               </span>
-              <span className="font-mono text-sm font-bold tabular-nums glow-text">
+              <span className="font-mono text-base font-bold tabular-nums glow-text">
                 {formatUtcClock(utcNow)}
               </span>
             </div>
@@ -345,7 +345,7 @@ export default function Dashboard() {
 
           {/* Status indicator */}
           <div
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[11px] font-mono font-bold uppercase tracking-wider ${
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-mono font-bold uppercase tracking-wider ${
               error
                 ? "text-red-400 border-red-500/20 bg-red-500/5"
                 : isFetching
@@ -378,7 +378,7 @@ export default function Dashboard() {
         <div className={`card-neon p-4 ${ruleConfig ? ruleConfig.glow : ""}`}>
           <div className="flex items-center gap-2 mb-3">
             <Shield className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
               Flight Rule
             </span>
           </div>
@@ -388,12 +388,12 @@ export default function Dashboard() {
                 <div className={`w-3 h-3 rounded-full ${ruleConfig.dot}`} />
                 <div className={`absolute w-3 h-3 rounded-full ${ruleConfig.dot} animate-ping opacity-25`} />
               </div>
-              <span className={`text-2xl font-black font-mono ${ruleConfig.text}`}>
+              <span className={`text-[1.7rem] font-black font-mono ${ruleConfig.text}`}>
                 {ruleConfig.label}
               </span>
             </div>
           ) : (
-            <span className="text-2xl font-black font-mono text-muted-foreground/40">
+            <span className="text-[1.7rem] font-black font-mono text-muted-foreground/40">
               --
             </span>
           )}
@@ -403,13 +403,13 @@ export default function Dashboard() {
         <div className="card-neon p-4">
           <div className="flex items-center gap-2 mb-3">
             <Wind className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
               Report
             </span>
           </div>
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary/50" />
-            <span className="text-2xl font-black font-mono text-foreground">
+            <span className="text-[1.7rem] font-black font-mono text-foreground">
               {reportType}
             </span>
           </div>
@@ -421,12 +421,12 @@ export default function Dashboard() {
             <RefreshCw
               className={`w-3.5 h-3.5 text-muted-foreground ${isFetching ? "animate-spin" : ""}`}
             />
-            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
               Next Scan
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-2xl font-black font-mono tabular-nums glow-text">
+            <span className="text-[1.7rem] font-black font-mono tabular-nums glow-text">
               {countdownDisplay}
             </span>
             {/* SVG ring timer */}
@@ -487,7 +487,7 @@ export default function Dashboard() {
             ) : (
               <VolumeX className="w-3.5 h-3.5 text-muted-foreground" />
             )}
-            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
               Audio
             </span>
           </div>
@@ -507,7 +507,7 @@ export default function Dashboard() {
               />
             </div>
             <span
-              className={`text-sm font-bold font-mono ${audioEnabled ? "text-primary" : "text-muted-foreground"}`}
+              className={`text-base font-bold font-mono ${audioEnabled ? "text-primary" : "text-muted-foreground"}`}
             >
               {audioEnabled ? "ON" : "OFF"}
             </span>
@@ -522,14 +522,14 @@ export default function Dashboard() {
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 neon-accent">
             <div className="flex items-center gap-2.5">
               <div className="w-1 h-5 rounded-full bg-primary shadow-[0_0_8px_hsl(190_95%_55%/0.3)]" />
-              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-foreground">
+              <span className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">
                 METAR / SPECI
               </span>
             </div>
             {ruleConfig && (
               <Badge
                 variant="outline"
-                className={`${ruleConfig.bg} ${ruleConfig.text} border ${ruleConfig.border} text-[10px] font-bold font-mono px-2`}
+                className={`${ruleConfig.bg} ${ruleConfig.text} border ${ruleConfig.border} text-xs font-bold font-mono px-2.5`}
               >
                 {ruleConfig.label}
               </Badge>
@@ -540,7 +540,7 @@ export default function Dashboard() {
             {isFetching && (
               <div className="absolute inset-0 animate-shimmer pointer-events-none" />
             )}
-            <p className="text-xs text-foreground/80 font-mono leading-relaxed break-all relative">
+            <p className="text-sm md:text-base text-foreground/85 font-mono leading-relaxed break-all relative">
               {reportLine}
             </p>
           </div>
@@ -551,7 +551,7 @@ export default function Dashboard() {
           <div className="flex items-center px-4 py-3 border-b border-border/60 neon-accent">
             <div className="flex items-center gap-2.5">
               <div className="w-1 h-5 rounded-full bg-amber-400 shadow-[0_0_8px_hsl(38_92%_50%/0.3)]" />
-              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-foreground">
+              <span className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">
                 TAF
               </span>
             </div>
@@ -560,7 +560,7 @@ export default function Dashboard() {
             {isFetching && (
               <div className="absolute inset-0 animate-shimmer pointer-events-none" />
             )}
-            <p className="text-xs text-foreground/80 font-mono leading-relaxed whitespace-pre-wrap break-words relative">
+            <p className="text-sm md:text-base text-foreground/85 font-mono leading-7 whitespace-pre-wrap break-words relative">
               {tafLine}
             </p>
           </div>
@@ -589,7 +589,7 @@ export default function Dashboard() {
                   <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                 </div>
               </div>
-              <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-[0.2em]">
+              <span className="text-xs font-mono text-muted-foreground uppercase tracking-[0.2em]">
                 Scanning REDEMET...
               </span>
             </div>
@@ -603,10 +603,10 @@ export default function Dashboard() {
               <AlertTriangle className="w-5 h-5 text-red-400" />
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground font-mono">
+              <p className="text-base font-bold text-foreground font-mono">
                 CONNECTION FAILED
               </p>
-              <p className="text-xs text-muted-foreground mt-1 font-mono">
+              <p className="text-sm text-muted-foreground mt-1 font-mono">
                 {error instanceof Error ? error.message : "Erro inesperado"}
               </p>
             </div>
@@ -629,10 +629,10 @@ export default function Dashboard() {
               />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-foreground font-mono uppercase tracking-wide">
+              <h3 className="text-base font-bold text-foreground font-mono uppercase tracking-wide">
                 No Active Warnings
               </h3>
-              <p className="text-xs text-muted-foreground mt-2 max-w-sm leading-relaxed">
+              <p className="text-sm text-muted-foreground mt-2 max-w-sm leading-relaxed">
                 {"Aerodromo "}
                 <span className="font-mono text-primary font-bold">
                   {icao}
@@ -669,14 +669,14 @@ export default function Dashboard() {
                   </div>
                   <div className="flex-grow space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h3 className="text-sm font-bold text-foreground uppercase tracking-wide font-mono">
+                      <h3 className="text-base font-bold text-foreground uppercase tracking-wide font-mono">
                         AD WRNG Active
                       </h3>
-                      <Badge className="bg-red-500/15 text-red-400 border border-red-500/20 text-[10px] font-bold font-mono uppercase px-2">
+                      <Badge className="bg-red-500/15 text-red-400 border border-red-500/20 text-xs font-bold font-mono uppercase px-2.5">
                         VIGENTE
                       </Badge>
                     </div>
-                    <div className="bg-background/60 rounded-md p-4 border-l-2 border-red-500/30 font-mono text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                    <div className="bg-background/60 rounded-md p-4 border-l-2 border-red-500/30 font-mono text-sm text-foreground/85 leading-relaxed whitespace-pre-wrap">
                       {aviso.mensagem}
                     </div>
                   </div>
@@ -689,10 +689,10 @@ export default function Dashboard() {
 
       {/* ── Footer ── */}
       <footer className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-5 border-t border-border/40">
-        <span className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-[0.15em]">
+        <span className="text-xs font-mono text-muted-foreground/60 uppercase tracking-[0.15em]">
           Tecnologia Antigravity
         </span>
-        <span className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-[0.15em]">
+        <span className="text-xs font-mono text-muted-foreground/60 uppercase tracking-[0.15em]">
           {"Data Source :: REDEMET API"}
         </span>
       </footer>
@@ -731,10 +731,10 @@ export default function Dashboard() {
               </div>
 
               <div>
-                <h2 className="text-lg font-black text-foreground uppercase tracking-tight font-mono">
+                <h2 className="text-xl font-black text-foreground uppercase tracking-tight font-mono">
                   Pilot Alert
                 </h2>
-                <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                <p className="text-base text-muted-foreground mt-2 leading-relaxed">
                   Novo aviso meteorologico para{" "}
                   <span className="font-mono text-primary font-bold">
                     {icao}
@@ -747,7 +747,7 @@ export default function Dashboard() {
                   <p className="text-amber-400 font-bold font-mono uppercase text-xs">
                     Audio Blocked
                   </p>
-                  <p className="text-amber-400/60 text-[11px] mt-0.5">
+                  <p className="text-xs text-amber-400/60 mt-0.5">
                     Clique na tela para habilitar o som
                   </p>
                 </div>
@@ -755,7 +755,7 @@ export default function Dashboard() {
 
               <Button
                 onClick={stopAlarm}
-                className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-sm rounded-lg uppercase tracking-wider font-mono"
+                className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
               >
                 Acknowledge & Silence
               </Button>
