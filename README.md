@@ -31,6 +31,8 @@ cp .env.example .env
 3. Preencha no `.env`:
 
 - `VITE_REDEMET_API_KEY`
+- `VITE_AISWEB_API_KEY`
+- `VITE_AISWEB_API_PASS`
 
 ## Desenvolvimento
 

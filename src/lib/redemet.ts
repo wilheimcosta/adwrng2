@@ -20,6 +20,13 @@ export type AerodromeStatusDetails = {
   error?: string;
 };
 
+export type AiswebAerodrome = {
+  code: string;
+  name: string;
+  city: string;
+  uf: string;
+};
+
 function normalizeText(input: string) {
   return input
     .toLowerCase()
@@ -195,4 +202,71 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
 export async function fetchAerodromeStatus(icao: string): Promise<{ flag: string | null; error?: string }> {
   const details = await fetchAerodromeStatusDetails(icao);
   return { flag: details.flag, error: details.error };
+}
+
+export function extractIcaosFromAdWarning(warningText: string): string[] {
+  const text = String(warningText ?? "").toUpperCase();
+  if (!text.trim()) return [];
+
+  const segment = text.includes("AD WRNG") ? text.split("AD WRNG")[0] : text;
+  const codes = segment.match(/\b[A-Z]{4}\b/g) ?? [];
+  return Array.from(new Set(codes));
+}
+
+export async function fetchAiswebAerodromes(codes: string[]): Promise<{ data: AiswebAerodrome[]; error?: string }> {
+  const apiKey = import.meta.env.VITE_AISWEB_API_KEY;
+  const apiPass = import.meta.env.VITE_AISWEB_API_PASS;
+  if (!apiKey || !apiPass) {
+    return { data: [], error: "VITE_AISWEB_API_KEY e VITE_AISWEB_API_PASS nao configuradas no .env." };
+  }
+
+  const normalized = Array.from(
+    new Set(
+      codes
+        .map((c) => String(c).toUpperCase().trim())
+        .filter((c) => /^[A-Z]{4}$/.test(c)),
+    ),
+  );
+  if (!normalized.length) return { data: [] };
+
+  try {
+    const url = new URL("https://api.decea.mil.br/aisweb/");
+    url.searchParams.set("apiKey", apiKey);
+    url.searchParams.set("apiPass", apiPass);
+    url.searchParams.set("area", "rotaer");
+    url.searchParams.set("aero", normalized.join(","));
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { Accept: "application/xml,text/xml;q=0.9,*/*;q=0.8" },
+    });
+
+    if (!response.ok) {
+      return { data: [], error: `AISWEB retornou ${response.status}` };
+    }
+
+    const xmlText = await response.text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(xmlText, "application/xml");
+
+    const parserError = xml.querySelector("parsererror");
+    if (parserError) {
+      return { data: [], error: "Falha ao interpretar XML retornado pela AISWEB." };
+    }
+
+    const items = Array.from(xml.querySelectorAll("item"));
+    const data: AiswebAerodrome[] = items.map((item) => ({
+      code: item.querySelector("AeroCode")?.textContent?.trim().toUpperCase() ?? "",
+      name: item.querySelector("name")?.textContent?.trim() ?? "",
+      city: item.querySelector("city")?.textContent?.trim() ?? "",
+      uf: item.querySelector("uf")?.textContent?.trim().toUpperCase() ?? "",
+    }));
+
+    return { data };
+  } catch (error) {
+    return {
+      data: [],
+      error: formatNetworkError(error, "Falha ao consultar AISWEB."),
+    };
+  }
 }

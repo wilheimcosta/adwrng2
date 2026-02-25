@@ -17,7 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useIcao } from "@/contexts/icao-context";
 import {
+  extractIcaosFromAdWarning,
   fetchAerodromeStatusDetails,
+  fetchAiswebAerodromes,
   mapFlightRuleFromFlag,
 } from "@/lib/redemet";
 
@@ -139,6 +141,25 @@ export default function Dashboard() {
     const fullMatch = normalized.match(/TAF[\s\S]*?=/i);
     return fullMatch ? fullMatch[0].trim() : "--";
   }, [statusData?.reportText]);
+
+  const warningIcaos = useMemo(
+    () => extractIcaosFromAdWarning(statusData?.warningText ?? ""),
+    [statusData?.warningText],
+  );
+
+  const {
+    data: aiswebData,
+    isFetching: isFetchingAisweb,
+    error: aiswebError,
+  } = useQuery({
+    queryKey: ["aisweb-rotaer", warningIcaos.join(",")],
+    queryFn: async () => {
+      const res = await fetchAiswebAerodromes(warningIcaos);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: Boolean(statusData?.hasAdWarning && warningIcaos.length > 0),
+  });
 
   /* ── Audio helpers ── */
 
@@ -673,6 +694,32 @@ export default function Dashboard() {
                     <div className="bg-background/60 rounded-md p-4 border-l-2 border-red-500/30 font-mono text-sm text-foreground/85 leading-relaxed whitespace-pre-wrap">
                       {aviso.mensagem}
                     </div>
+                    {warningIcaos.length > 0 && (
+                      <div className="bg-background/60 rounded-md p-4 border-l-2 border-primary/30">
+                        <p className="text-xs font-bold font-mono uppercase tracking-wider text-primary mb-2">
+                          Aerodromes In Warning
+                        </p>
+                        {isFetchingAisweb && (
+                          <p className="text-sm text-muted-foreground font-mono">
+                            Loading AISWEB data...
+                          </p>
+                        )}
+                        {aiswebError && (
+                          <p className="text-sm text-red-300 font-mono">
+                            {aiswebError instanceof Error ? aiswebError.message : "Failed to load AISWEB data."}
+                          </p>
+                        )}
+                        {!isFetchingAisweb && !aiswebError && (
+                          <div className="space-y-1">
+                            {(aiswebData ?? []).map((ad) => (
+                              <p key={ad.code} className="text-sm text-foreground/90 font-mono">
+                                {ad.code}: {ad.name} - {ad.city}/{ad.uf}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
