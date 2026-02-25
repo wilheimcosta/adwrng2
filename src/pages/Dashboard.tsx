@@ -159,18 +159,16 @@ export default function Dashboard() {
 
   const isMetarDelayed = useMemo(() => {
     const report = statusData?.reportText ?? "";
-    const match = report.match(/\b(?:METAR|SPECI)\s+[A-Z]{4}\s+(\d{2})(\d{2})(\d{2})Z\b/i);
+    const match = report.match(/\bMETAR\s+[A-Z]{4}\s+(\d{2})(\d{2})(\d{2})Z\b/i);
     if (!match) return false;
 
     const metarDay = Number(match[1]);
     const metarHour = Number(match[2]);
-    const metarMinute = Number(match[3]);
-    if ([metarDay, metarHour, metarMinute].some(Number.isNaN)) return false;
+    if ([metarDay, metarHour].some(Number.isNaN)) return false;
 
     return (
       metarDay !== utcNow.getUTCDate() ||
-      metarHour !== utcNow.getUTCHours() ||
-      metarMinute !== utcNow.getUTCMinutes()
+      metarHour !== utcNow.getUTCHours()
     );
   }, [statusData?.reportText, utcNow]);
 
