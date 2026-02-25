@@ -666,7 +666,7 @@ export default function Dashboard() {
                         AD WRNG Active
                       </h3>
                       <Badge className="bg-red-500/15 text-red-400 border border-red-500/20 text-xs font-bold font-mono uppercase px-2.5">
-                        VIGENTE
+                        ACTIVE
                       </Badge>
                     </div>
                     <div className="bg-background/60 rounded-md p-4 border-l-2 border-red-500/30 font-mono text-sm text-foreground/85 leading-relaxed whitespace-pre-wrap">
@@ -725,7 +725,7 @@ export default function Dashboard() {
                   Pilot Alert
                 </h2>
                 <p className="text-base text-muted-foreground mt-2 leading-relaxed">
-                  Novo aviso meteorologico para{" "}
+                  New weather warning for{" "}
                   <span className="font-mono text-primary font-bold">
                     {icao}
                   </span>
