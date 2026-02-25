@@ -27,6 +27,12 @@ export type AiswebAerodrome = {
   uf: string;
 };
 
+function toTitleCase(value: string): string {
+  return String(value ?? "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/(^|[\s\-/'(])\p{L}/gu, (ch) => ch.toLocaleUpperCase("pt-BR"));
+}
+
 function normalizeText(input: string) {
   return input
     .toLowerCase()
@@ -257,7 +263,7 @@ export async function fetchAiswebAerodromes(codes: string[]): Promise<{ data: Ai
     const items = Array.from(xml.querySelectorAll("item"));
     const data: AiswebAerodrome[] = items.map((item) => ({
       code: item.querySelector("AeroCode")?.textContent?.trim().toUpperCase() ?? "",
-      name: item.querySelector("name")?.textContent?.trim() ?? "",
+      name: toTitleCase(item.querySelector("name")?.textContent?.trim() ?? ""),
       city: item.querySelector("city")?.textContent?.trim() ?? "",
       uf: item.querySelector("uf")?.textContent?.trim().toUpperCase() ?? "",
     }));
