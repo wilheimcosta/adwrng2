@@ -771,7 +771,7 @@ export default function Dashboard() {
       {/* ── Footer ── */}
       <footer className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-5 border-t border-border/40">
         <span className="text-xs font-mono text-muted-foreground/60 uppercase tracking-[0.15em]">
-          {"Data Source :: REDEMET/AISWEB API"}
+          {"Data Source :: REDEMET / AISWEB API"}
         </span>
       </footer>
 
