@@ -726,7 +726,7 @@ export default function Dashboard() {
                   Pilot Alert
                 </h2>
                 <p className="text-base text-muted-foreground mt-2 leading-relaxed">
-                  New weather warning for{" "}
+                  New Aerodrome Warning for{" "}
                   <span className="font-mono text-primary font-bold">
                     {icao}
                   </span>
