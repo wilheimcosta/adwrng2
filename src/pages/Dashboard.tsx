@@ -324,7 +324,7 @@ export default function Dashboard() {
             <p className="text-sm text-muted-foreground font-mono">
               {"// "}
               <span className="text-primary font-semibold">{icao}</span>
-              {" :: real-time monitoring"}
+              {" :: Real-Time Monitoring"}
             </p>
           </div>
         </div>
@@ -334,11 +334,11 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 bg-card rounded-lg px-3.5 py-2 border border-border/60">
             <Clock className="w-3.5 h-3.5 text-primary/60" />
             <div className="flex items-baseline gap-1.5">
-              <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground">
-                UTC
-              </span>
               <span className="font-mono text-base font-bold tabular-nums glow-text">
                 {formatUtcClock(utcNow)}
+              </span>
+              <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground">
+                UTC
               </span>
             </div>
           </div>
@@ -632,13 +632,6 @@ export default function Dashboard() {
               <h3 className="text-base font-bold text-foreground font-mono uppercase tracking-wide">
                 No Active Warnings
               </h3>
-              <p className="text-sm text-muted-foreground mt-2 max-w-sm leading-relaxed">
-                {"Aerodromo "}
-                <span className="font-mono text-primary font-bold">
-                  {icao}
-                </span>
-                {" esta operando normalmente. Nenhum AD WRNG reportado."}
-              </p>
             </div>
           </div>
         ) : (
@@ -689,9 +682,6 @@ export default function Dashboard() {
 
       {/* ── Footer ── */}
       <footer className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-5 border-t border-border/40">
-        <span className="text-xs font-mono text-muted-foreground/60 uppercase tracking-[0.15em]">
-          Tecnologia Antigravity
-        </span>
         <span className="text-xs font-mono text-muted-foreground/60 uppercase tracking-[0.15em]">
           {"Data Source :: REDEMET API"}
         </span>
