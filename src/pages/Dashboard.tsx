@@ -118,6 +118,7 @@ export default function Dashboard() {
     if (/\bMETAR\b/i.test(report)) return "METAR";
     return "N/D";
   }, [statusData?.reportText]);
+  const metarPanelTitle = reportType === "SPECI" ? "SPECI" : "METAR";
 
   const reportLine = useMemo(() => {
     const report = statusData?.reportText ?? "";
@@ -523,7 +524,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2.5">
               <div className="w-1 h-5 rounded-full bg-primary shadow-[0_0_8px_hsl(190_95%_55%/0.3)]" />
               <span className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">
-                METAR / SPECI
+                {metarPanelTitle}
               </span>
             </div>
             {ruleConfig && (
@@ -540,7 +541,7 @@ export default function Dashboard() {
             {isFetching && (
               <div className="absolute inset-0 animate-shimmer pointer-events-none" />
             )}
-            <p className="text-sm md:text-base text-foreground/85 font-mono leading-relaxed break-all relative">
+            <p className="text-sm md:text-base text-foreground/85 font-mono leading-relaxed whitespace-pre-wrap break-normal text-justify relative">
               {reportLine}
             </p>
           </div>
