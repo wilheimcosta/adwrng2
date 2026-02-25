@@ -36,6 +36,13 @@ function formatUtcClock(date: Date): string {
   return `${h}:${m}:${s}`;
 }
 
+function translateUnavailableMessage(text: string, type: "METAR" | "TAF"): string | null {
+  const regex = new RegExp(`${type}\\s+n[aã]o\\s+dispon[ií]vel\\s+para\\s+([A-Z]{4})`, "i");
+  const match = String(text ?? "").match(regex);
+  if (!match) return null;
+  return `${type} not available for ${match[1].toUpperCase()}`;
+}
+
 function flightRuleConfig(rule: "VFR" | "IFR" | "LIFR") {
   if (rule === "VFR")
     return {
@@ -124,6 +131,9 @@ export default function Dashboard() {
 
   const reportLine = useMemo(() => {
     const report = statusData?.reportText ?? "";
+    const translatedUnavailable = translateUnavailableMessage(report, "METAR");
+    if (translatedUnavailable) return translatedUnavailable;
+
     const lines = report
       .split(/\r?\n/)
       .map((l) => l.trim())
@@ -137,12 +147,32 @@ export default function Dashboard() {
 
   const tafLine = useMemo(() => {
     const report = statusData?.reportText ?? "";
+    const translatedUnavailable = translateUnavailableMessage(report, "TAF");
+    if (translatedUnavailable) return translatedUnavailable;
+
     const normalized = report.replace(/\r/g, "");
     const fullMatch = normalized.match(/TAF[\s\S]*?=/i);
     return fullMatch
       ? fullMatch[0].trim()
       : `TAF not available for ${icao.toUpperCase()}`;
   }, [statusData?.reportText, icao]);
+
+  const isMetarDelayed = useMemo(() => {
+    const report = statusData?.reportText ?? "";
+    const match = report.match(/\b(?:METAR|SPECI)\s+[A-Z]{4}\s+(\d{2})(\d{2})(\d{2})Z\b/i);
+    if (!match) return false;
+
+    const metarDay = Number(match[1]);
+    const metarHour = Number(match[2]);
+    const metarMinute = Number(match[3]);
+    if ([metarDay, metarHour, metarMinute].some(Number.isNaN)) return false;
+
+    return (
+      metarDay !== utcNow.getUTCDate() ||
+      metarHour !== utcNow.getUTCHours() ||
+      metarMinute !== utcNow.getUTCMinutes()
+    );
+  }, [statusData?.reportText, utcNow]);
 
   const warningIcaos = useMemo(
     () => extractIcaosFromAdWarning(statusData?.warningText ?? ""),
@@ -550,14 +580,24 @@ export default function Dashboard() {
                 {metarPanelTitle}
               </span>
             </div>
-            {ruleConfig && (
-              <Badge
-                variant="outline"
-                className={`${ruleConfig.bg} ${ruleConfig.text} border ${ruleConfig.border} text-xs font-bold font-mono px-2.5`}
-              >
-                {ruleConfig.label}
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {isMetarDelayed && (
+                <Badge
+                  variant="outline"
+                  className="bg-amber-500/10 text-amber-300 border border-amber-500/35 text-xs font-bold font-mono px-2.5 animate-pulse"
+                >
+                  Delayed
+                </Badge>
+              )}
+              {ruleConfig && (
+                <Badge
+                  variant="outline"
+                  className={`${ruleConfig.bg} ${ruleConfig.text} border ${ruleConfig.border} text-xs font-bold font-mono px-2.5`}
+                >
+                  {ruleConfig.label}
+                </Badge>
+              )}
+            </div>
           </div>
           <div className="p-4 relative">
             {/* Subtle shimmer overlay when loading */}
