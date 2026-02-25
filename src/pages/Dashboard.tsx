@@ -139,8 +139,10 @@ export default function Dashboard() {
     const report = statusData?.reportText ?? "";
     const normalized = report.replace(/\r/g, "");
     const fullMatch = normalized.match(/TAF[\s\S]*?=/i);
-    return fullMatch ? fullMatch[0].trim() : "--";
-  }, [statusData?.reportText]);
+    return fullMatch
+      ? fullMatch[0].trim()
+      : `TAF not available for ${icao.toUpperCase()}`;
+  }, [statusData?.reportText, icao]);
 
   const warningIcaos = useMemo(
     () => extractIcaosFromAdWarning(statusData?.warningText ?? ""),
