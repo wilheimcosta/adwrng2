@@ -352,7 +352,7 @@ export default function Dashboard() {
   /* ───────────────────── Render ───────────────────── */
 
   return (
-    <div className="relative max-w-6xl mx-auto space-y-5 font-sans text-[15px] md:text-base">
+    <div className="relative w-full space-y-5 font-sans text-[15px] md:text-base">
       {/* ── Header Section ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
