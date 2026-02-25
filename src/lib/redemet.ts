@@ -268,6 +268,9 @@ export async function fetchAiswebAerodromes(codes: string[]): Promise<{ data: Ai
       uf: item.querySelector("uf")?.textContent?.trim().toUpperCase() ?? "",
     }));
 
+    const order = new Map(normalized.map((code, idx) => [code, idx]));
+    data.sort((a, b) => (order.get(a.code) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.code) ?? Number.MAX_SAFE_INTEGER));
+
     return { data };
   } catch (error) {
     return {
