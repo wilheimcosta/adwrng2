@@ -44,7 +44,7 @@ export function AppSidebar() {
           {!collapsed && (
             <div className="flex flex-col">
               <span className="text-sm font-bold tracking-tight text-foreground">
-                AeroWatch
+                AeroWatch - AD WRNG Monitor
               </span>
               <span className="text-[10px] font-mono text-primary/70 leading-none mt-0.5 tracking-wider">
                 SYSTEM ACTIVE
