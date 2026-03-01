@@ -60,7 +60,7 @@ export function AppSidebar() {
           <SidebarGroupLabel
             className={`text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-medium mb-2 px-2 ${collapsed ? "sr-only" : ""}`}
           >
-            Localidade
+            Location
           </SidebarGroupLabel>
           <SidebarGroupContent>
             {collapsed ? (
