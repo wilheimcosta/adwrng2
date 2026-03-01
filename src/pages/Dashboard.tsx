@@ -371,7 +371,7 @@ export default function Dashboard() {
           </div>
           <div>
             <h1 className="text-lg md:text-xl font-extrabold text-foreground tracking-tight text-balance">
-              AD WRNG Monitor
+              Monitor AD WRNG
             </h1>
             <p className="text-sm text-muted-foreground font-mono">
               {"// "}
