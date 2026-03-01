@@ -352,9 +352,9 @@ export default function Dashboard() {
   /* ───────────────────── Render ───────────────────── */
 
   return (
-    <div className="relative w-full space-y-5 font-sans text-[15px] md:text-base">
+    <div className="relative w-full space-y-4 sm:space-y-5 font-sans text-sm sm:text-[15px] md:text-base">
       {/* ── Header Section ── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           {/* Animated radar icon */}
           <div className="relative w-11 h-11 rounded-lg bg-primary/8 flex items-center justify-center border border-primary/15 overflow-hidden">
@@ -370,10 +370,10 @@ export default function Dashboard() {
             <div className="absolute bottom-0 right-0 h-2 w-px bg-primary/40" />
           </div>
           <div>
-            <h1 className="text-lg md:text-xl font-extrabold text-foreground tracking-tight text-balance">
+            <h1 className="text-base sm:text-lg md:text-xl font-extrabold text-foreground tracking-tight text-balance">
               AD WRNG Monitor
             </h1>
-            <p className="text-sm text-muted-foreground font-mono">
+            <p className="text-xs sm:text-sm text-muted-foreground font-mono">
               {"// "}
               <span className="text-primary font-semibold">{icao}</span>
               {" :: Real-Time Monitoring"}
@@ -381,12 +381,12 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex w-full md:w-auto items-center md:justify-end gap-2 flex-wrap">
           {/* UTC clock */}
-          <div className="flex items-center gap-2 bg-card rounded-lg px-3.5 py-2 border border-border/60">
+          <div className="flex items-center gap-2 bg-card rounded-lg px-3 py-2 border border-border/60">
             <Clock className="w-3.5 h-3.5 text-primary/60" />
             <div className="flex items-baseline gap-1.5">
-              <span className="font-mono text-base font-bold tabular-nums glow-text">
+              <span className="font-mono text-sm sm:text-base font-bold tabular-nums glow-text">
                 {formatUtcClock(utcNow)}
               </span>
               <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground">
@@ -425,9 +425,9 @@ export default function Dashboard() {
       </div>
 
       {/* ── Stats Grid ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         {/* Flight Rule */}
-        <div className={`card-neon p-4 ${ruleConfig ? ruleConfig.glow : ""}`}>
+        <div className={`card-neon p-3 sm:p-4 ${ruleConfig ? ruleConfig.glow : ""}`}>
           <div className="flex items-center gap-2 mb-3">
             <Shield className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
@@ -440,19 +440,19 @@ export default function Dashboard() {
                 <div className={`w-3 h-3 rounded-full ${ruleConfig.dot}`} />
                 <div className={`absolute w-3 h-3 rounded-full ${ruleConfig.dot} animate-ping opacity-25`} />
               </div>
-              <span className={`text-[1.7rem] font-black font-mono ${ruleConfig.text}`}>
+              <span className={`text-[1.5rem] sm:text-[1.7rem] font-black font-mono ${ruleConfig.text}`}>
                 {ruleConfig.label}
               </span>
             </div>
           ) : (
-            <span className="text-[1.7rem] font-black font-mono text-muted-foreground/40">
+            <span className="text-[1.5rem] sm:text-[1.7rem] font-black font-mono text-muted-foreground/40">
               --
             </span>
           )}
         </div>
 
         {/* Report Type */}
-        <div className="card-neon p-4">
+        <div className="card-neon p-3 sm:p-4">
           <div className="flex items-center gap-2 mb-3">
             <Wind className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
@@ -461,14 +461,14 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary/50" />
-            <span className="text-[1.7rem] font-black font-mono text-foreground">
+            <span className="text-[1.5rem] sm:text-[1.7rem] font-black font-mono text-foreground">
               {reportType}
             </span>
           </div>
         </div>
 
         {/* Countdown */}
-        <div className="card-neon p-4">
+        <div className="card-neon p-3 sm:p-4">
           <div className="flex items-center gap-2 mb-3">
             <RefreshCw
               className={`w-3.5 h-3.5 text-muted-foreground ${isFetching ? "animate-spin" : ""}`}
@@ -478,7 +478,7 @@ export default function Dashboard() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[1.7rem] font-black font-mono tabular-nums glow-text">
+            <span className="text-[1.5rem] sm:text-[1.7rem] font-black font-mono tabular-nums glow-text">
               {countdownDisplay}
             </span>
             {/* SVG ring timer */}
@@ -527,7 +527,7 @@ export default function Dashboard() {
             if (next) playBeep(0.1, 880);
             else stopAlarm();
           }}
-          className={`card-neon p-4 text-left transition-all ${
+          className={`card-neon p-3 sm:p-4 text-left transition-all ${
             audioEnabled
               ? "border-primary/20 shadow-[0_0_20px_hsl(190_95%_55%/0.06)]"
               : ""
@@ -568,10 +568,10 @@ export default function Dashboard() {
       </div>
 
       {/* ── METAR / TAF panels ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* METAR */}
         <div className="card-neon overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 neon-accent">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-3 border-b border-border/60 neon-accent">
             <div className="flex items-center gap-2.5">
               <div className="w-1 h-5 rounded-full bg-primary shadow-[0_0_8px_hsl(190_95%_55%/0.3)]" />
               <span className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">
@@ -597,7 +597,7 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-          <div className="p-4 relative">
+          <div className="p-3 sm:p-4 relative">
             {/* Subtle shimmer overlay when loading */}
             {isFetching && (
               <div className="absolute inset-0 animate-shimmer pointer-events-none" />
@@ -610,7 +610,7 @@ export default function Dashboard() {
 
         {/* TAF */}
         <div className="card-neon overflow-hidden">
-          <div className="flex items-center px-4 py-3 border-b border-border/60 neon-accent">
+          <div className="flex items-center px-3 sm:px-4 py-3 border-b border-border/60 neon-accent">
             <div className="flex items-center gap-2.5">
               <div className="w-1 h-5 rounded-full bg-amber-400 shadow-[0_0_8px_hsl(38_92%_50%/0.3)]" />
               <span className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">
@@ -618,7 +618,7 @@ export default function Dashboard() {
               </span>
             </div>
           </div>
-          <div className="p-4 relative">
+          <div className="p-3 sm:p-4 relative">
             {isFetching && (
               <div className="absolute inset-0 animate-shimmer pointer-events-none" />
             )}
@@ -660,7 +660,7 @@ export default function Dashboard() {
 
         {error ? (
           /* Error state */
-          <div className="card-neon border-red-500/20 p-5 flex items-start gap-4">
+          <div className="card-neon border-red-500/20 p-4 sm:p-5 flex items-start gap-4">
             <div className="w-11 h-11 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0 border border-red-500/20">
               <AlertTriangle className="w-5 h-5 text-red-400" />
             </div>
@@ -675,7 +675,7 @@ export default function Dashboard() {
           </div>
         ) : list.length === 0 ? (
           /* Clear state - no warnings */
-          <div className="card-neon border-emerald-500/15 bg-emerald-500/[0.02] p-8 lg:p-12 flex flex-col items-center justify-center gap-5 text-center">
+          <div className="card-neon border-emerald-500/15 bg-emerald-500/[0.02] p-6 sm:p-8 lg:p-12 flex flex-col items-center justify-center gap-5 text-center">
             <div className="relative animate-float">
               <div className="w-16 h-16 rounded-full bg-emerald-500/8 flex items-center justify-center border border-emerald-500/20">
                 <CheckCircle2 className="w-8 h-8 text-emerald-400" />
@@ -716,7 +716,7 @@ export default function Dashboard() {
                   />
                 </div>
 
-                <div className="p-5 flex flex-col md:flex-row gap-4">
+                <div className="p-4 sm:p-5 flex flex-col lg:flex-row gap-4">
                   <div className="flex-shrink-0">
                     <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center border border-red-500/20 animate-pulse-glow">
                       <AlertTriangle className="w-6 h-6 text-red-400" />
@@ -731,11 +731,11 @@ export default function Dashboard() {
                         ACTIVE
                       </Badge>
                     </div>
-                    <div className="bg-background/60 rounded-md p-4 border-l-2 border-red-500/30 font-mono text-sm text-foreground/85 leading-relaxed whitespace-pre-wrap">
+                    <div className="bg-background/60 rounded-md p-3 sm:p-4 border-l-2 border-red-500/30 font-mono text-sm text-foreground/85 leading-relaxed whitespace-pre-wrap">
                       {aviso.mensagem}
                     </div>
                     {warningIcaos.length > 0 && (
-                      <div className="bg-background/60 rounded-md p-4 border-l-2 border-primary/30">
+                      <div className="bg-background/60 rounded-md p-3 sm:p-4 border-l-2 border-primary/30">
                         <p className="text-xs font-bold font-mono uppercase tracking-wider text-primary mb-2">
                           Aerodromes In Warning
                         </p>
@@ -752,7 +752,7 @@ export default function Dashboard() {
                         {!isFetchingAisweb && !aiswebError && (
                           <div className="space-y-1">
                             {(aiswebData ?? []).map((ad) => (
-                              <p key={ad.code} className="text-sm text-foreground/90 font-mono">
+                              <p key={ad.code} className="text-sm text-foreground/90 font-mono break-words">
                                 {ad.code}: {ad.name} - {ad.city}/{ad.uf}
                               </p>
                             ))}
