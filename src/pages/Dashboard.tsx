@@ -831,12 +831,20 @@ export default function Dashboard() {
                 </div>
               )}
 
-              <Button
-                onClick={stopAlarm}
-                className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
-              >
-                Acknowledge & Silence
-              </Button>
+              <div className="w-full flex flex-col gap-3">
+                <Button
+                  onClick={stopAlarm}
+                  className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
+                >
+                  Acknowledge & Silence
+                </Button>
+                <Button
+                  onClick={stopAlarm}
+                  className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
+                >
+                  Acknowledge / Silence / E-Mail
+                </Button>
+              </div>
             </div>
           </div>
         </div>
