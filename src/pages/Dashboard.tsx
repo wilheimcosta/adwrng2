@@ -362,11 +362,11 @@ export default function Dashboard() {
 
     const wsLine =
       decodedWarning.wspdKt !== null
-        ? `Previsao de vento de superficie de ${decodedWarning.wspdKt} nos (~${ktToKmH(decodedWarning.wspdKt).toFixed(2)} km/h)` +
+        ? `Previsão de velocidade do vento na superfície de ${decodedWarning.wspdKt} nós (~${ktToKmH(decodedWarning.wspdKt).toFixed(2)} km/h)` +
           (decodedWarning.maxKt !== null
-            ? ` com rajadas maximas de ${decodedWarning.maxKt} nos (~${ktToKmH(decodedWarning.maxKt).toFixed(2)} km/h).`
+            ? `, com rajadas máximas de ${decodedWarning.maxKt} nós (~${ktToKmH(decodedWarning.maxKt).toFixed(2)} km/h).`
             : ".")
-        : "Sem informacao de velocidade do vento.";
+        : "Sem informação de velocidade do vento.";
 
     const rawValidity = decodedWarning.startsAt && decodedWarning.endsAt
       ? `${decodedWarning.startsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCMinutes().toString().padStart(2, "0")}/${decodedWarning.endsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCMinutes().toString().padStart(2, "0")}`
@@ -377,7 +377,7 @@ export default function Dashboard() {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Aviso de Aerodromo ${escapeHtml(decodedWarning.number ?? "")}</title>
+    <title>Aviso de Aeródromo ${escapeHtml(decodedWarning.number ?? "")}</title>
     <style>
       :root {
         --bg: #f5f6f8;
@@ -481,7 +481,7 @@ export default function Dashboard() {
   </head>
   <body>
     <main class="sheet">
-      <h1 class="title">AVISO DE AERODROMO N ${escapeHtml(decodedWarning.number ?? "--")} - ${escapeHtml(formatPtBrMonthYear(decodedWarning.startsAt ?? new Date()))}</h1>
+      <h1 class="title">AVISO DE AERÓDROMO Nº ${escapeHtml(decodedWarning.number ?? "--")} - ${escapeHtml(formatPtBrMonthYear(decodedWarning.startsAt ?? new Date()))}</h1>
 
       <section class="head-grid">
         <div class="head-card">
@@ -498,8 +498,8 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <p class="lead">Segue abaixo a decodificacao detalhada para conhecimento e providencias.</p>
-      <h3 class="section-title">Aerodromos Aplicaveis:</h3>
+      <p class="lead">Segue abaixo a decodificação detalhada para conhecimento e providências.</p>
+      <h3 class="section-title">Aeródromos Aplicáveis:</h3>
       <ul>
         ${decodedWarning.aerodromes.map((item) => `<li><b>${escapeHtml(item.code)}:</b> ${escapeHtml(item.detail.replace(`${item.code}: `, ""))}</li>`).join("") || "<li>N/D</li>"}
       </ul>
@@ -511,7 +511,7 @@ export default function Dashboard() {
           </span>
           <div>
             <b>AD WRNG ${escapeHtml(decodedWarning.number ?? "--")}:</b>
-            <p>Este e o aviso de aerodromo numero ${escapeHtml(decodedWarning.number ?? "--")} emitido para o periodo vigente.</p>
+            <p>Este é o aviso de aeródromo número ${escapeHtml(decodedWarning.number ?? "--")} emitido pelo CIMAER - Centro Integrado de Meteorologia Aeronáutica.</p>
           </div>
         </article>
 
@@ -521,7 +521,7 @@ export default function Dashboard() {
           </span>
           <div>
             <b>VALID ${escapeHtml(rawValidity)}:</b>
-            <p>O aviso e valido de <b>${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</b> ate <b>${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</b>.</p>
+            <p>O aviso é válido de <b>${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</b> até <b>${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</b>.</p>
           </div>
         </article>
 
@@ -531,7 +531,7 @@ export default function Dashboard() {
           </span>
           <div>
             <b>TS (Trovoadas):</b>
-            <p>${decodedWarning.hasTs ? "Ha previsao de trovoadas nos aerodromos mencionados." : "Nao ha indicacao de trovoadas na mensagem."}</p>
+            <p>${decodedWarning.hasTs ? "Há previsão de trovoadas nos aeródromos mencionados." : "Não há indicação de trovoadas na mensagem."}</p>
           </div>
         </article>
 
@@ -551,13 +551,13 @@ export default function Dashboard() {
           </span>
           <div>
             <b>FCST NC:</b>
-            <p>${decodedWarning.hasFcstNc ? "Sem mudancas significativas previstas durante o periodo de validade do aviso." : "Sem indicacao FCST NC na mensagem."}</p>
+            <p>${decodedWarning.hasFcstNc ? "Sem mudanças significativas previstas durante o período de validade do aviso." : "Sem indicação FCST NC na mensagem."}</p>
           </div>
         </article>
       </section>
 
       <div class="msg-box">${escapeHtml(warningText)}</div>
-      <p class="note">NOTA: 1 NO (KT) = 1,852 km/h</p>
+      <p class="note">NOTA: 1 NÓ (KT) = 1,852 km/h</p>
     </main>
   </body>
 </html>`;
