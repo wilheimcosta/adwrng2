@@ -209,6 +209,20 @@ export default function Dashboard() {
     [statusData?.warningText],
   );
 
+  const {
+    data: aiswebData,
+    isFetching: isFetchingAisweb,
+    error: aiswebError,
+  } = useQuery({
+    queryKey: ["aisweb-rotaer", warningIcaos.join(",")],
+    queryFn: async () => {
+      const res = await fetchAiswebAerodromes(warningIcaos);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: Boolean(statusData?.hasAdWarning && warningIcaos.length > 0),
+  });
+
   const decodedWarning = useMemo(() => {
     const warningText = (statusData?.warningText ?? "").trim();
     const upper = warningText.toUpperCase();
@@ -260,20 +274,6 @@ export default function Dashboard() {
       aerodromes,
     };
   }, [statusData?.warningText, warningIcaos, aiswebData, utcNow]);
-
-  const {
-    data: aiswebData,
-    isFetching: isFetchingAisweb,
-    error: aiswebError,
-  } = useQuery({
-    queryKey: ["aisweb-rotaer", warningIcaos.join(",")],
-    queryFn: async () => {
-      const res = await fetchAiswebAerodromes(warningIcaos);
-      if (res.error) throw new Error(res.error);
-      return res.data;
-    },
-    enabled: Boolean(statusData?.hasAdWarning && warningIcaos.length > 0),
-  });
 
   /* ── Audio helpers ── */
 
@@ -336,7 +336,8 @@ export default function Dashboard() {
 
   const handleAcknowledgeSilenceEmail = () => {
     stopAlarm();
-    if (!decodedWarning.warningText) return;
+    const fallbackWarning = (statusData?.warningText ?? list[0]?.mensagem ?? "Sem mensagem de aviso.").trim();
+    const warningText = decodedWarning.warningText || fallbackWarning;
 
     const wsLine =
       decodedWarning.wspdKt !== null
@@ -382,12 +383,16 @@ export default function Dashboard() {
     </ul>
 
     <h2>Mensagem Original</h2>
-    <div class="box">${escapeHtml(decodedWarning.warningText)}</div>
+    <div class="box">${escapeHtml(warningText)}</div>
   </body>
 </html>`;
 
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const href = URL.createObjectURL(blob);
+    const preview = window.open(href, "_blank", "noopener,noreferrer");
+    if (!preview) {
+      window.alert("Pop-up bloqueado. O arquivo HTML sera baixado automaticamente.");
+    }
     const anchor = document.createElement("a");
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     anchor.href = href;
