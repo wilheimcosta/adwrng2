@@ -553,11 +553,16 @@ export default function Dashboard() {
         width: 24px; height: 24px; border-radius: 50%;
         display: inline-flex; align-items: center; justify-content: center;
         background: #193150; border: 1px solid #2f577f;
-        animation: pulseIcon 1.8s ease-in-out infinite;
+        animation: iconPulse 1.8s ease-in-out infinite;
       }
-      .icon svg { width: 14px; height: 14px; fill: #b9d3ff; }
+      .icon svg { width: 14px; height: 14px; fill: #b9d3ff; animation: iconFloat 2.2s ease-in-out infinite; transform-origin: 50% 50%; }
       .item.warn .icon { background: rgba(179, 38, 30, .18); border-color: rgba(255, 95, 98, .4); }
       .item.warn .icon svg { fill: var(--danger); }
+      .decode .item:nth-child(1) .icon svg { animation-name: iconWobble; animation-duration: 1.6s; }
+      .decode .item:nth-child(2) .icon svg { animation-name: iconSpin; animation-duration: 3.5s; }
+      .decode .item:nth-child(3) .icon svg { animation-name: iconFloat; animation-duration: 2.1s; }
+      .decode .item:nth-child(4) .icon svg { animation-name: iconWind; animation-duration: 1.9s; }
+      .decode .item:nth-child(5) .icon svg { animation-name: iconBlink; animation-duration: 1.5s; }
       .item b { font-size: 14px; color: #e6f4ff; }
       .item p { margin: 4px 0 0; color: #c2d5f0; }
       .note {
@@ -568,15 +573,6 @@ export default function Dashboard() {
         border: 1px solid rgba(255, 95, 98, .4);
         padding: 8px 10px;
         border-radius: 10px;
-      }
-      .outlook-box {
-        margin-top: 14px;
-        border: 1px dashed #426997;
-        border-radius: 10px;
-        padding: 10px;
-        color: #9fc5ee;
-        font-size: 12px;
-        background: rgba(10, 20, 36, .55);
       }
       .copy-status {
         margin-left: 8px;
@@ -599,9 +595,30 @@ export default function Dashboard() {
         50% { transform: rotate(180deg) scale(1.15); opacity: 1; }
         100% { transform: rotate(360deg) scale(1); opacity: .8; }
       }
-      @keyframes pulseIcon {
+      @keyframes iconPulse {
         0%,100% { box-shadow: 0 0 0 0 rgba(50, 65, 84, .18); }
         50% { box-shadow: 0 0 0 6px rgba(50, 65, 84, 0); }
+      }
+      @keyframes iconFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-2px); }
+      }
+      @keyframes iconWobble {
+        0%, 100% { transform: rotate(0deg) scale(1); }
+        25% { transform: rotate(-8deg) scale(1.05); }
+        75% { transform: rotate(8deg) scale(1.05); }
+      }
+      @keyframes iconSpin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      @keyframes iconWind {
+        0%, 100% { transform: translateX(0); }
+        50% { transform: translateX(2px); }
+      }
+      @keyframes iconBlink {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: .45; transform: scale(0.9); }
       }
       @media (max-width: 900px) {
         .head-grid { grid-template-columns: 1fr; }
@@ -708,9 +725,6 @@ export default function Dashboard() {
       </section>
 
       <p class="note">NOTA: 1 NÓ (KT) = 1,852 km/h</p>
-      <div class="outlook-box">
-        Dica Outlook: clique em <b>Copiar Corpo para Outlook</b> e cole diretamente no corpo do e-mail (Ctrl+V).
-      </div>
     </main>
     <script>
       (function () {
