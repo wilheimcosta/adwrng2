@@ -401,8 +401,29 @@ export default function Dashboard() {
           linear-gradient(180deg, #07101d 0%, var(--bg) 100%);
         color: var(--ink);
         font-family: "Segoe UI", "IBM Plex Sans", "Trebuchet MS", Arial, sans-serif;
+        overflow-x: hidden;
       }
+      .bg-tech {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .bg-tech .orb {
+        position: absolute;
+        width: 160px;
+        height: 160px;
+        border-radius: 999px;
+        border: 1px solid rgba(57, 214, 255, 0.2);
+        filter: blur(0.2px);
+        animation: orbit 16s linear infinite;
+      }
+      .bg-tech .orb.one { top: 10%; left: 8%; animation-duration: 18s; }
+      .bg-tech .orb.two { top: 65%; right: 6%; animation-duration: 22s; }
+      .bg-tech .orb.three { bottom: 8%; left: 35%; animation-duration: 20s; }
       .sheet {
+        position: relative;
+        z-index: 1;
         max-width: 1100px;
         margin: 0 auto;
         background: linear-gradient(165deg, rgba(19, 35, 58, 0.92), rgba(15, 26, 43, 0.9));
@@ -470,12 +491,44 @@ export default function Dashboard() {
         border: 1px solid #28486c;
         border-radius: 10px;
         padding: 10px;
+        min-height: 110px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
         animation: slideUp .35s ease-out both;
       }
       .head-card:nth-child(2) { animation-delay: .05s; }
       .head-card:nth-child(3) { animation-delay: .1s; }
-      .head-label { font-size: 12px; color: var(--muted); font-weight: 700; margin-bottom: 4px; text-transform: uppercase; }
-      .head-value { font-weight: 700; font-size: 14px; word-break: break-word; }
+      .head-label {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .head-value {
+        font-weight: 700;
+        font-size: 14px;
+        width: 100%;
+        max-width: 100%;
+        text-align: justify;
+        text-align-last: center;
+        line-height: 1.35;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        hyphens: auto;
+      }
+      .head-icon {
+        width: 14px;
+        height: 14px;
+        display: inline-block;
+        animation: spinPulse 2.4s ease-in-out infinite;
+      }
+      .head-icon svg { width: 100%; height: 100%; fill: #9ed7ff; }
       .lead { margin: 14px 0 10px; color: #b8c7de; }
       .section-title { margin: 18px 0 8px; font-size: 15px; color: #dff4ff; }
       ul { margin: 0; padding-left: 18px; color: #d3def1; }
@@ -536,6 +589,16 @@ export default function Dashboard() {
         0%, 100% { transform: scale(1); opacity: 1; }
         50% { transform: scale(1.25); opacity: .55; }
       }
+      @keyframes orbit {
+        0% { transform: translateY(0) scale(1) rotate(0deg); opacity: .45; }
+        50% { transform: translateY(-12px) scale(1.06) rotate(180deg); opacity: .75; }
+        100% { transform: translateY(0) scale(1) rotate(360deg); opacity: .45; }
+      }
+      @keyframes spinPulse {
+        0% { transform: rotate(0deg) scale(1); opacity: .8; }
+        50% { transform: rotate(180deg) scale(1.15); opacity: 1; }
+        100% { transform: rotate(360deg) scale(1); opacity: .8; }
+      }
       @keyframes pulseIcon {
         0%,100% { box-shadow: 0 0 0 0 rgba(50, 65, 84, .18); }
         50% { box-shadow: 0 0 0 6px rgba(50, 65, 84, 0); }
@@ -548,6 +611,11 @@ export default function Dashboard() {
     </style>
   </head>
   <body>
+    <div class="bg-tech" aria-hidden="true">
+      <span class="orb one"></span>
+      <span class="orb two"></span>
+      <span class="orb three"></span>
+    </div>
     <main class="sheet">
       <div class="toolbar">
         <button class="btn" id="copy-outlook" type="button">Copiar Corpo para Outlook</button>
@@ -559,15 +627,24 @@ export default function Dashboard() {
 
       <section class="head-grid" id="outlook-body">
         <div class="head-card">
-          <div class="head-label">Validade Inicial</div>
+          <div class="head-label">
+            <span class="head-icon"><svg viewBox="0 0 24 24"><path d="M12 1a11 11 0 1 0 11 11A11 11 0 0 0 12 1Zm1 11.4 4.2 2.5-1 1.7L11 13.4V6h2Z"/></svg></span>
+            Validade Inicial
+          </div>
           <div class="head-value">${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</div>
         </div>
         <div class="head-card">
-          <div class="head-label">Validade Final</div>
+          <div class="head-label">
+            <span class="head-icon"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 14h-2v-2h2v2Zm0-4h-2V7h2v5Z"/></svg></span>
+            Validade Final
+          </div>
           <div class="head-value">${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</div>
         </div>
         <div class="head-card">
-          <div class="head-label">Mensagem</div>
+          <div class="head-label">
+            <span class="head-icon"><svg viewBox="0 0 24 24"><path d="M2 4h20v14H2V4Zm2 2v1.2l8 5.2 8-5.2V6l-8 5-8-5Z"/></svg></span>
+            Mensagem
+          </div>
           <div class="head-value">${escapeHtml(warningText)}</div>
         </div>
       </section>
