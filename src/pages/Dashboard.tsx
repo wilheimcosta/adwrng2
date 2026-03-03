@@ -457,16 +457,6 @@ export default function Dashboard() {
       .item.warn .icon svg { fill: var(--danger); }
       .item b { font-size: 14px; }
       .item p { margin: 4px 0 0; color: #1f2937; }
-      .msg-box {
-        margin-top: 14px;
-        background: #f9fafb;
-        border-left: 4px solid var(--danger);
-        border-radius: 8px;
-        padding: 10px 12px;
-        white-space: pre-wrap;
-        font-family: Consolas, "Courier New", monospace;
-        font-size: 13px;
-      }
       .note { margin-top: 10px; color: #c62828; font-weight: 700; }
       @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -556,7 +546,6 @@ export default function Dashboard() {
         </article>
       </section>
 
-      <div class="msg-box">${escapeHtml(warningText)}</div>
       <p class="note">NOTA: 1 NÓ (KT) = 1,852 km/h</p>
     </main>
   </body>
