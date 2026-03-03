@@ -36,6 +36,38 @@ function formatUtcClock(date: Date): string {
   return `${h}:${m}:${s}`;
 }
 
+function formatUtcDateTime(date: Date): string {
+  const day = date.getUTCDate().toString().padStart(2, "0");
+  const month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+  const year = date.getUTCFullYear().toString();
+  const hour = date.getUTCHours().toString().padStart(2, "0");
+  const minute = date.getUTCMinutes().toString().padStart(2, "0");
+  return `${day}/${month}/${year} - ${hour}:${minute} UTC`;
+}
+
+function resolveUtcDate(day: number, hour: number, minute: number, base: Date): Date {
+  const y = base.getUTCFullYear();
+  const m = base.getUTCMonth();
+  const candidate = new Date(Date.UTC(y, m, day, hour, minute, 0, 0));
+  const dayDiff = Math.round((candidate.getTime() - base.getTime()) / (24 * 60 * 60 * 1000));
+  if (dayDiff > 20) return new Date(Date.UTC(y, m - 1, day, hour, minute, 0, 0));
+  if (dayDiff < -20) return new Date(Date.UTC(y, m + 1, day, hour, minute, 0, 0));
+  return candidate;
+}
+
+function ktToKmH(value: number): number {
+  return value * 1.852;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function translateUnavailableMessage(text: string, type: "METAR" | "TAF"): string | null {
   const regex = new RegExp(`${type}\\s+n[aã]o\\s+dispon[ií]vel\\s+para\\s+([A-Z]{4})`, "i");
   const match = String(text ?? "").match(regex);
@@ -177,6 +209,58 @@ export default function Dashboard() {
     [statusData?.warningText],
   );
 
+  const decodedWarning = useMemo(() => {
+    const warningText = (statusData?.warningText ?? "").trim();
+    const upper = warningText.toUpperCase();
+
+    const numberMatch = upper.match(/\bAD\s+WRNG\s+(\d+)\b/);
+    const validityMatch = upper.match(/\bVALID\s+(\d{2})(\d{2})(\d{2})\/(\d{2})(\d{2})(\d{2})\b/);
+    const wspdMatch = upper.match(/\bWSPD\s+(\d{1,3})KT(?:\s+MAX\s+(\d{1,3}))?\b/);
+
+    const startsAt =
+      validityMatch
+        ? resolveUtcDate(
+            Number(validityMatch[1]),
+            Number(validityMatch[2]),
+            Number(validityMatch[3]),
+            utcNow,
+          )
+        : null;
+    const endsAt =
+      validityMatch
+        ? resolveUtcDate(
+            Number(validityMatch[4]),
+            Number(validityMatch[5]),
+            Number(validityMatch[6]),
+            startsAt ?? utcNow,
+          )
+        : null;
+
+    const wspdKt = wspdMatch ? Number(wspdMatch[1]) : null;
+    const maxKt = wspdMatch?.[2] ? Number(wspdMatch[2]) : null;
+
+    const aerodromes = warningIcaos.map((code) => {
+      const data = (aiswebData ?? []).find((item) => item.code === code);
+      return {
+        code,
+        detail: data ? `${data.code}: ${data.name} - ${data.city}/${data.uf}` : code,
+      };
+    });
+
+    return {
+      warningText,
+      number: numberMatch?.[1] ?? null,
+      startsAt,
+      endsAt,
+      hasTs: /\bTS\b/.test(upper),
+      hasSfc: /\bSFC\b/.test(upper),
+      wspdKt,
+      maxKt,
+      hasFcstNc: /\bFCST\s+NC\b/.test(upper),
+      aerodromes,
+    };
+  }, [statusData?.warningText, warningIcaos, aiswebData, utcNow]);
+
   const {
     data: aiswebData,
     isFetching: isFetchingAisweb,
@@ -248,6 +332,70 @@ export default function Dashboard() {
       window.clearTimeout(alarmTimeoutRef.current);
       alarmTimeoutRef.current = null;
     }
+  };
+
+  const handleAcknowledgeSilenceEmail = () => {
+    stopAlarm();
+    if (!decodedWarning.warningText) return;
+
+    const wsLine =
+      decodedWarning.wspdKt !== null
+        ? `Previsao de vento de superficie de ${decodedWarning.wspdKt} nos (~${ktToKmH(decodedWarning.wspdKt).toFixed(2)} km/h)` +
+          (decodedWarning.maxKt !== null
+            ? ` com rajadas maximas de ${decodedWarning.maxKt} nos (~${ktToKmH(decodedWarning.maxKt).toFixed(2)} km/h).`
+            : ".")
+        : "Sem informacao de velocidade do vento.";
+
+    const html = `<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aviso de Aerodromo ${escapeHtml(decodedWarning.number ?? "")}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      h1 { margin: 0 0 8px 0; font-size: 22px; }
+      .muted { color: #555; }
+      .box { background: #f6f6f6; border-left: 4px solid #c62828; padding: 12px; margin: 16px 0; white-space: pre-wrap; }
+      ul { margin-top: 4px; }
+      li { margin: 2px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>AVISO DE AERODROMO ${escapeHtml(decodedWarning.number ? `N ${decodedWarning.number}` : "")}</h1>
+    <p class="muted">Gerado em ${escapeHtml(formatUtcDateTime(new Date()))}</p>
+
+    <h2>Validade</h2>
+    <p><strong>Inicial:</strong> ${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</p>
+    <p><strong>Final:</strong> ${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</p>
+
+    <h2>Aerodromos Aplicaveis</h2>
+    <ul>
+      ${decodedWarning.aerodromes.map((item) => `<li>${escapeHtml(item.detail)}</li>`).join("") || "<li>N/D</li>"}
+    </ul>
+
+    <h2>Decodificacao</h2>
+    <ul>
+      <li><strong>TS (Trovoadas):</strong> ${decodedWarning.hasTs ? "Ha previsao de trovoadas nos aerodromos mencionados." : "Nao informado."}</li>
+      <li><strong>${escapeHtml(decodedWarning.hasSfc ? "SFC " : "")}WSPD:</strong> ${escapeHtml(wsLine)}</li>
+      <li><strong>FCST NC:</strong> ${decodedWarning.hasFcstNc ? "Sem mudancas significativas previstas durante o periodo de validade." : "Nao informado."}</li>
+    </ul>
+
+    <h2>Mensagem Original</h2>
+    <div class="box">${escapeHtml(decodedWarning.warningText)}</div>
+  </body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    anchor.href = href;
+    anchor.download = `ad-wrng-${icao.toUpperCase()}-${stamp}.html`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(href);
   };
 
   const triggerAlarm = () => {
@@ -839,7 +987,7 @@ export default function Dashboard() {
                   Acknowledge & Silence
                 </Button>
                 <Button
-                  onClick={stopAlarm}
+                  onClick={handleAcknowledgeSilenceEmail}
                   className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
                 >
                   Acknowledge / Silence / E-Mail
