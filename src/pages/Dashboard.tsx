@@ -45,6 +45,27 @@ function formatUtcDateTime(date: Date): string {
   return `${day}/${month}/${year} - ${hour}:${minute} UTC`;
 }
 
+function formatPtBrMonthYear(date: Date): string {
+  const months = [
+    "JAN",
+    "FEV",
+    "MAR",
+    "ABR",
+    "MAI",
+    "JUN",
+    "JUL",
+    "AGO",
+    "SET",
+    "OUT",
+    "NOV",
+    "DEZ",
+  ];
+  const day = date.getUTCDate().toString().padStart(2, "0");
+  const month = months[date.getUTCMonth()] ?? "N/D";
+  const year = date.getUTCFullYear().toString();
+  return `${day}/${month}/${year}`;
+}
+
 function resolveUtcDate(day: number, hour: number, minute: number, base: Date): Date {
   const y = base.getUTCFullYear();
   const m = base.getUTCMonth();
@@ -347,6 +368,10 @@ export default function Dashboard() {
             : ".")
         : "Sem informacao de velocidade do vento.";
 
+    const rawValidity = decodedWarning.startsAt && decodedWarning.endsAt
+      ? `${decodedWarning.startsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCMinutes().toString().padStart(2, "0")}/${decodedWarning.endsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCMinutes().toString().padStart(2, "0")}`
+      : "N/D";
+
     const html = `<!doctype html>
 <html lang="pt-BR">
   <head>
@@ -354,36 +379,186 @@ export default function Dashboard() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aviso de Aerodromo ${escapeHtml(decodedWarning.number ?? "")}</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
-      h1 { margin: 0 0 8px 0; font-size: 22px; }
-      .muted { color: #555; }
-      .box { background: #f6f6f6; border-left: 4px solid #c62828; padding: 12px; margin: 16px 0; white-space: pre-wrap; }
-      ul { margin-top: 4px; }
-      li { margin: 2px 0; }
+      :root {
+        --bg: #f5f6f8;
+        --card: #ffffff;
+        --ink: #10131a;
+        --muted: #6a7380;
+        --danger: #b3261e;
+        --accent: #0f172a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 18px;
+        background: radial-gradient(circle at top right, #ffffff, var(--bg) 60%);
+        color: var(--ink);
+        font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      }
+      .sheet {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: var(--card);
+        border: 1px solid #dde2e8;
+        border-radius: 12px;
+        padding: 16px 18px 18px;
+        box-shadow: 0 12px 28px rgba(10, 17, 32, 0.08);
+        animation: fadeIn .45s ease-out;
+      }
+      .title {
+        margin: 0;
+        font-size: 20px;
+        letter-spacing: .3px;
+        border-bottom: 1px solid #d7dde4;
+        padding-bottom: 10px;
+      }
+      .head-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 2fr;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .head-card {
+        background: #f8fafc;
+        border: 1px solid #e4e8ee;
+        border-radius: 10px;
+        padding: 10px;
+      }
+      .head-label { font-size: 12px; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+      .head-value { font-weight: 700; font-size: 14px; word-break: break-word; }
+      .lead { margin: 14px 0 10px; color: #253041; }
+      .section-title { margin: 16px 0 8px; font-size: 15px; }
+      ul { margin: 0; padding-left: 18px; }
+      li { margin: 4px 0; }
+      .decode { margin-top: 12px; display: grid; gap: 10px; }
+      .item {
+        border: 1px solid #e4e8ee;
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: linear-gradient(90deg, #fff, #fbfcfe);
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        gap: 10px;
+        align-items: start;
+        animation: slideUp .35s ease-out both;
+      }
+      .item:nth-child(2) { animation-delay: .05s; }
+      .item:nth-child(3) { animation-delay: .10s; }
+      .item:nth-child(4) { animation-delay: .15s; }
+      .item:nth-child(5) { animation-delay: .20s; }
+      .icon {
+        width: 24px; height: 24px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #eef2f8; border: 1px solid #d8e0eb;
+        animation: pulseIcon 1.8s ease-in-out infinite;
+      }
+      .icon svg { width: 14px; height: 14px; fill: #324154; }
+      .item.warn .icon { background: #fff2f2; border-color: #f5c2c2; }
+      .item.warn .icon svg { fill: var(--danger); }
+      .item b { font-size: 14px; }
+      .item p { margin: 4px 0 0; color: #1f2937; }
+      .msg-box {
+        margin-top: 14px;
+        background: #f9fafb;
+        border-left: 4px solid var(--danger);
+        border-radius: 8px;
+        padding: 10px 12px;
+        white-space: pre-wrap;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 13px;
+      }
+      .note { margin-top: 10px; color: #c62828; font-weight: 700; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes pulseIcon {
+        0%,100% { box-shadow: 0 0 0 0 rgba(50, 65, 84, .18); }
+        50% { box-shadow: 0 0 0 6px rgba(50, 65, 84, 0); }
+      }
+      @media (max-width: 900px) {
+        .head-grid { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body>
-    <h1>AVISO DE AERODROMO ${escapeHtml(decodedWarning.number ? `N ${decodedWarning.number}` : "")}</h1>
-    <p class="muted">Gerado em ${escapeHtml(formatUtcDateTime(new Date()))}</p>
+    <main class="sheet">
+      <h1 class="title">AVISO DE AERODROMO N ${escapeHtml(decodedWarning.number ?? "--")} - ${escapeHtml(formatPtBrMonthYear(decodedWarning.startsAt ?? new Date()))}</h1>
 
-    <h2>Validade</h2>
-    <p><strong>Inicial:</strong> ${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</p>
-    <p><strong>Final:</strong> ${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</p>
+      <section class="head-grid">
+        <div class="head-card">
+          <div class="head-label">Validade Inicial</div>
+          <div class="head-value">${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</div>
+        </div>
+        <div class="head-card">
+          <div class="head-label">Validade Final</div>
+          <div class="head-value">${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</div>
+        </div>
+        <div class="head-card">
+          <div class="head-label">Mensagem</div>
+          <div class="head-value">${escapeHtml(warningText)}</div>
+        </div>
+      </section>
 
-    <h2>Aerodromos Aplicaveis</h2>
-    <ul>
-      ${decodedWarning.aerodromes.map((item) => `<li>${escapeHtml(item.detail)}</li>`).join("") || "<li>N/D</li>"}
-    </ul>
+      <p class="lead">Segue abaixo a decodificacao detalhada para conhecimento e providencias.</p>
+      <h3 class="section-title">Aerodromos Aplicaveis:</h3>
+      <ul>
+        ${decodedWarning.aerodromes.map((item) => `<li><b>${escapeHtml(item.code)}:</b> ${escapeHtml(item.detail.replace(`${item.code}: `, ""))}</li>`).join("") || "<li>N/D</li>"}
+      </ul>
 
-    <h2>Decodificacao</h2>
-    <ul>
-      <li><strong>TS (Trovoadas):</strong> ${decodedWarning.hasTs ? "Ha previsao de trovoadas nos aerodromos mencionados." : "Nao informado."}</li>
-      <li><strong>${escapeHtml(decodedWarning.hasSfc ? "SFC " : "")}WSPD:</strong> ${escapeHtml(wsLine)}</li>
-      <li><strong>FCST NC:</strong> ${decodedWarning.hasFcstNc ? "Sem mudancas significativas previstas durante o periodo de validade." : "Nao informado."}</li>
-    </ul>
+      <section class="decode">
+        <article class="item warn">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 1 21h22L12 2Zm1 15h-2v2h2v-2Zm0-8h-2v6h2V9Z"/></svg>
+          </span>
+          <div>
+            <b>AD WRNG ${escapeHtml(decodedWarning.number ?? "--")}:</b>
+            <p>Este e o aviso de aerodromo numero ${escapeHtml(decodedWarning.number ?? "--")} emitido para o periodo vigente.</p>
+          </div>
+        </article>
 
-    <h2>Mensagem Original</h2>
-    <div class="box">${escapeHtml(warningText)}</div>
+        <article class="item">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a11 11 0 1 0 11 11A11 11 0 0 0 12 1Zm1 11.4 4.2 2.5-1 1.7L11 13.4V6h2Z"/></svg>
+          </span>
+          <div>
+            <b>VALID ${escapeHtml(rawValidity)}:</b>
+            <p>O aviso e valido de <b>${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</b> ate <b>${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</b>.</p>
+          </div>
+        </article>
+
+        <article class="item">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13a4 4 0 0 0-3.9-3 5 5 0 0 0-9.6 1.6A3.5 3.5 0 0 0 6 18h11a4 4 0 0 0 2-5Z"/></svg>
+          </span>
+          <div>
+            <b>TS (Trovoadas):</b>
+            <p>${decodedWarning.hasTs ? "Ha previsao de trovoadas nos aerodromos mencionados." : "Nao ha indicacao de trovoadas na mensagem."}</p>
+          </div>
+        </article>
+
+        <article class="item">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h10v2H3v-2Zm4-5h14v2H7V7Zm-2 10h14v2H5v-2Z"/></svg>
+          </span>
+          <div>
+            <b>${escapeHtml(decodedWarning.hasSfc ? "SFC " : "")}WSPD${decodedWarning.wspdKt !== null ? ` ${decodedWarning.wspdKt}KT` : ""}${decodedWarning.maxKt !== null ? ` MAX ${decodedWarning.maxKt}` : ""}:</b>
+            <p>${escapeHtml(wsLine)}</p>
+          </div>
+        </article>
+
+        <article class="item">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 14h-2v-2h2v2Zm0-4h-2V7h2v5Z"/></svg>
+          </span>
+          <div>
+            <b>FCST NC:</b>
+            <p>${decodedWarning.hasFcstNc ? "Sem mudancas significativas previstas durante o periodo de validade do aviso." : "Sem indicacao FCST NC na mensagem."}</p>
+          </div>
+        </article>
+      </section>
+
+      <div class="msg-box">${escapeHtml(warningText)}</div>
+      <p class="note">NOTA: 1 NO (KT) = 1,852 km/h</p>
+    </main>
   </body>
 </html>`;
 
