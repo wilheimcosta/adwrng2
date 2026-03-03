@@ -380,62 +380,112 @@ export default function Dashboard() {
     <title>Aviso de Aeródromo ${escapeHtml(decodedWarning.number ?? "")}</title>
     <style>
       :root {
-        --bg: #f5f6f8;
-        --card: #ffffff;
-        --ink: #10131a;
-        --muted: #6a7380;
-        --danger: #b3261e;
-        --accent: #0f172a;
+        --bg: #09111f;
+        --panel: #0f1a2b;
+        --panel-2: #13233a;
+        --ink: #ebf3ff;
+        --muted: #94a8c8;
+        --line: #254262;
+        --danger: #ff5f62;
+        --ok: #30d39d;
+        --accent: #39d6ff;
+        --violet: #7aa2ff;
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        padding: 18px;
-        background: radial-gradient(circle at top right, #ffffff, var(--bg) 60%);
+        padding: 20px;
+        background:
+          radial-gradient(circle at 15% -10%, rgba(57, 214, 255, 0.22), transparent 34%),
+          radial-gradient(circle at 100% 0%, rgba(122, 162, 255, 0.18), transparent 40%),
+          linear-gradient(180deg, #07101d 0%, var(--bg) 100%);
         color: var(--ink);
-        font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+        font-family: "Segoe UI", "IBM Plex Sans", "Trebuchet MS", Arial, sans-serif;
       }
       .sheet {
-        max-width: 1200px;
+        max-width: 1100px;
         margin: 0 auto;
-        background: var(--card);
-        border: 1px solid #dde2e8;
-        border-radius: 12px;
-        padding: 16px 18px 18px;
-        box-shadow: 0 12px 28px rgba(10, 17, 32, 0.08);
-        animation: fadeIn .45s ease-out;
+        background: linear-gradient(165deg, rgba(19, 35, 58, 0.92), rgba(15, 26, 43, 0.9));
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: 0 30px 80px rgba(3, 8, 16, 0.55);
+        backdrop-filter: blur(4px);
+        animation: fadeIn .5s ease-out;
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        margin-bottom: 10px;
+      }
+      .btn {
+        border: 1px solid #2e4f73;
+        color: var(--ink);
+        background: linear-gradient(180deg, #183051, #14263e);
+        border-radius: 10px;
+        padding: 8px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .2px;
+        cursor: pointer;
+        transition: .25s ease;
+      }
+      .btn:hover { transform: translateY(-1px); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(57, 214, 255, .16); }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #36557b;
+        border-radius: 999px;
+        background: rgba(8, 16, 30, .65);
+        color: #bfe8ff;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--ok);
+        box-shadow: 0 0 10px var(--ok);
+        animation: pulse 1.8s ease-in-out infinite;
       }
       .title {
-        margin: 0;
-        font-size: 20px;
-        letter-spacing: .3px;
-        border-bottom: 1px solid #d7dde4;
-        padding-bottom: 10px;
+        margin: 10px 0 0;
+        font-size: 22px;
+        line-height: 1.2;
+        letter-spacing: .4px;
       }
       .head-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr 2fr;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
         margin-top: 12px;
       }
       .head-card {
-        background: #f8fafc;
-        border: 1px solid #e4e8ee;
+        background: linear-gradient(180deg, rgba(14, 28, 47, .9), rgba(12, 22, 38, .8));
+        border: 1px solid #28486c;
         border-radius: 10px;
         padding: 10px;
+        animation: slideUp .35s ease-out both;
       }
-      .head-label { font-size: 12px; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+      .head-card:nth-child(2) { animation-delay: .05s; }
+      .head-card:nth-child(3) { animation-delay: .1s; }
+      .head-label { font-size: 12px; color: var(--muted); font-weight: 700; margin-bottom: 4px; text-transform: uppercase; }
       .head-value { font-weight: 700; font-size: 14px; word-break: break-word; }
-      .lead { margin: 14px 0 10px; color: #253041; }
-      .section-title { margin: 16px 0 8px; font-size: 15px; }
-      ul { margin: 0; padding-left: 18px; }
+      .lead { margin: 14px 0 10px; color: #b8c7de; }
+      .section-title { margin: 18px 0 8px; font-size: 15px; color: #dff4ff; }
+      ul { margin: 0; padding-left: 18px; color: #d3def1; }
       li { margin: 4px 0; }
       .decode { margin-top: 12px; display: grid; gap: 10px; }
       .item {
-        border: 1px solid #e4e8ee;
+        border: 1px solid #2a4c73;
         border-radius: 10px;
         padding: 10px 12px;
-        background: linear-gradient(90deg, #fff, #fbfcfe);
+        background: linear-gradient(180deg, rgba(16, 33, 56, .95), rgba(13, 24, 42, .9));
         display: grid;
         grid-template-columns: 28px 1fr;
         gap: 10px;
@@ -449,31 +499,65 @@ export default function Dashboard() {
       .icon {
         width: 24px; height: 24px; border-radius: 50%;
         display: inline-flex; align-items: center; justify-content: center;
-        background: #eef2f8; border: 1px solid #d8e0eb;
+        background: #193150; border: 1px solid #2f577f;
         animation: pulseIcon 1.8s ease-in-out infinite;
       }
-      .icon svg { width: 14px; height: 14px; fill: #324154; }
-      .item.warn .icon { background: #fff2f2; border-color: #f5c2c2; }
+      .icon svg { width: 14px; height: 14px; fill: #b9d3ff; }
+      .item.warn .icon { background: rgba(179, 38, 30, .18); border-color: rgba(255, 95, 98, .4); }
       .item.warn .icon svg { fill: var(--danger); }
-      .item b { font-size: 14px; }
-      .item p { margin: 4px 0 0; color: #1f2937; }
-      .note { margin-top: 10px; color: #c62828; font-weight: 700; }
+      .item b { font-size: 14px; color: #e6f4ff; }
+      .item p { margin: 4px 0 0; color: #c2d5f0; }
+      .note {
+        margin-top: 12px;
+        color: #ffd0d0;
+        font-weight: 700;
+        background: rgba(179, 38, 30, .14);
+        border: 1px solid rgba(255, 95, 98, .4);
+        padding: 8px 10px;
+        border-radius: 10px;
+      }
+      .outlook-box {
+        margin-top: 14px;
+        border: 1px dashed #426997;
+        border-radius: 10px;
+        padding: 10px;
+        color: #9fc5ee;
+        font-size: 12px;
+        background: rgba(10, 20, 36, .55);
+      }
+      .copy-status {
+        margin-left: 8px;
+        font-size: 12px;
+        color: #8ad6ae;
+      }
       @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.25); opacity: .55; }
+      }
       @keyframes pulseIcon {
         0%,100% { box-shadow: 0 0 0 0 rgba(50, 65, 84, .18); }
         50% { box-shadow: 0 0 0 6px rgba(50, 65, 84, 0); }
       }
       @media (max-width: 900px) {
         .head-grid { grid-template-columns: 1fr; }
+        .toolbar { justify-content: stretch; }
+        .btn { width: 100%; }
       }
     </style>
   </head>
   <body>
     <main class="sheet">
+      <div class="toolbar">
+        <button class="btn" id="copy-outlook" type="button">Copiar Corpo para Outlook</button>
+        <button class="btn" id="save-html" type="button">Salvar HTML</button>
+        <span class="copy-status" id="copy-status"></span>
+      </div>
+      <span class="badge"><span class="dot"></span>Relatório Dinâmico AD WRNG</span>
       <h1 class="title">AVISO DE AERÓDROMO Nº ${escapeHtml(decodedWarning.number ?? "--")} - ${escapeHtml(formatPtBrMonthYear(decodedWarning.startsAt ?? new Date()))}</h1>
 
-      <section class="head-grid">
+      <section class="head-grid" id="outlook-body">
         <div class="head-card">
           <div class="head-label">Validade Inicial</div>
           <div class="head-value">${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</div>
@@ -547,7 +631,70 @@ export default function Dashboard() {
       </section>
 
       <p class="note">NOTA: 1 NÓ (KT) = 1,852 km/h</p>
+      <div class="outlook-box">
+        Dica Outlook: clique em <b>Copiar Corpo para Outlook</b> e cole diretamente no corpo do e-mail (Ctrl+V).
+      </div>
     </main>
+    <script>
+      (function () {
+        const copyBtn = document.getElementById("copy-outlook");
+        const saveBtn = document.getElementById("save-html");
+        const status = document.getElementById("copy-status");
+        const content = document.querySelector(".sheet");
+        const body = document.getElementById("outlook-body");
+
+        function setStatus(message, error) {
+          if (!status) return;
+          status.textContent = message;
+          status.style.color = error ? "#ff9ea0" : "#8ad6ae";
+          setTimeout(function () {
+            status.textContent = "";
+          }, 3000);
+        }
+
+        async function copyForOutlook() {
+          if (!body) return;
+          const html = body.outerHTML;
+          const text = body.innerText || "";
+          try {
+            if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+              const item = new ClipboardItem({
+                "text/html": new Blob([html], { type: "text/html" }),
+                "text/plain": new Blob([text], { type: "text/plain" })
+              });
+              await navigator.clipboard.write([item]);
+              setStatus("Conteúdo copiado em HTML para o Outlook.", false);
+              return;
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(text);
+              setStatus("Copiado como texto. Cole no Outlook.", false);
+              return;
+            }
+            setStatus("Área de transferência não suportada neste navegador.", true);
+          } catch (err) {
+            setStatus("Falha ao copiar para área de transferência.", true);
+          }
+        }
+
+        function saveFile() {
+          if (!content) return;
+          const fileHtml = "<!doctype html>" + document.documentElement.outerHTML;
+          const blob = new Blob([fileHtml], { type: "text/html;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "ad-wrng-outlook.html";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 8000);
+        }
+
+        copyBtn && copyBtn.addEventListener("click", copyForOutlook);
+        saveBtn && saveBtn.addEventListener("click", saveFile);
+      })();
+    </script>
   </body>
 </html>`;
 
@@ -564,7 +711,7 @@ export default function Dashboard() {
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    URL.revokeObjectURL(href);
+    window.setTimeout(() => URL.revokeObjectURL(href), 10000);
   };
 
   const triggerAlarm = () => {
