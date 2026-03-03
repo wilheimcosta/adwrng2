@@ -36,6 +36,40 @@ function formatUtcClock(date: Date): string {
   return `${h}:${m}:${s}`;
 }
 
+function formatUtcDateTime(date: Date): string {
+  const day = date.getUTCDate().toString().padStart(2, "0");
+  const month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+  const year = date.getUTCFullYear().toString();
+  const hh = date.getUTCHours().toString().padStart(2, "0");
+  const mm = date.getUTCMinutes().toString().padStart(2, "0");
+  return `${day}/${month}/${year} - ${hh}:${mm} UTC`;
+}
+
+function buildUtcDateFromDayTime(
+  day: number,
+  hour: number,
+  minute: number,
+  referenceDate: Date,
+): Date {
+  const year = referenceDate.getUTCFullYear();
+  const month = referenceDate.getUTCMonth();
+  const candidate = new Date(Date.UTC(year, month, day, hour, minute, 0, 0));
+  const plus20d = referenceDate.getTime() + 20 * 24 * 60 * 60 * 1000;
+  const minus20d = referenceDate.getTime() - 20 * 24 * 60 * 60 * 1000;
+
+  if (candidate.getTime() > plus20d) {
+    return new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+  }
+  if (candidate.getTime() < minus20d) {
+    return new Date(Date.UTC(year, month + 1, day, hour, minute, 0, 0));
+  }
+  return candidate;
+}
+
+function ktToKmH(kt: number): number {
+  return kt * 1.852;
+}
+
 function translateUnavailableMessage(text: string, type: "METAR" | "TAF"): string | null {
   const regex = new RegExp(`${type}\\s+n[aã]o\\s+dispon[ií]vel\\s+para\\s+([A-Z]{4})`, "i");
   const match = String(text ?? "").match(regex);
@@ -177,6 +211,75 @@ export default function Dashboard() {
     [statusData?.warningText],
   );
 
+  const decodedWarningEmailBody = useMemo(() => {
+    const warningText = statusData?.warningText ?? "";
+    if (!warningText.trim()) return "";
+
+    const upper = warningText.toUpperCase();
+    const numberMatch = upper.match(/\bAD\s+WRNG\s+(\d+)\b/);
+    const validityMatch = upper.match(
+      /\bVALID\s+(\d{2})(\d{2})(\d{2})\/(\d{2})(\d{2})(\d{2})\b/,
+    );
+    const wspdMatch = upper.match(/\bWSPD\s+(\d{1,3})KT(?:\s+MAX\s+(\d{1,3}))?\b/);
+    const hasTs = /\bTS\b/.test(upper);
+    const hasFcstNc = /\bFCST\s+NC\b/.test(upper);
+    const hasSfc = /\bSFC\b/.test(upper);
+
+    const startUtc =
+      validityMatch
+        ? buildUtcDateFromDayTime(
+            Number(validityMatch[1]),
+            Number(validityMatch[2]),
+            Number(validityMatch[3]),
+            utcNow,
+          )
+        : null;
+
+    const endUtc =
+      validityMatch
+        ? buildUtcDateFromDayTime(
+            Number(validityMatch[4]),
+            Number(validityMatch[5]),
+            Number(validityMatch[6]),
+            startUtc ?? utcNow,
+          )
+        : null;
+
+    const wspdKt = wspdMatch ? Number(wspdMatch[1]) : null;
+    const maxKt = wspdMatch?.[2] ? Number(wspdMatch[2]) : null;
+    const wspdKmh = wspdKt !== null ? ktToKmH(wspdKt) : null;
+    const maxKmh = maxKt !== null ? ktToKmH(maxKt) : null;
+
+    const aerodromes = warningIcaos
+      .map((code) => {
+        const ad = (aiswebData ?? []).find((item) => item.code === code);
+        return ad ? `${ad.code}: ${ad.name} - ${ad.city}/${ad.uf}` : code;
+      })
+      .join("\n");
+
+    return [
+      `AVISO DE AERODROMO ${numberMatch ? `N ${numberMatch[1]}` : ""}`.trim(),
+      "",
+      `Aerodromo de referencia: ${icao.toUpperCase()}`,
+      startUtc ? `Validade inicial: ${formatUtcDateTime(startUtc)}` : "Validade inicial: N/D",
+      endUtc ? `Validade final: ${formatUtcDateTime(endUtc)}` : "Validade final: N/D",
+      "",
+      "Aerodromos aplicaveis:",
+      aerodromes || "N/D",
+      "",
+      "Decodificacao:",
+      hasTs ? "- TS (Trovoadas): Ha previsao de trovoadas nos aerodromos mencionados." : "- TS: N/D",
+      wspdKt !== null
+        ? `- ${hasSfc ? "SFC " : ""}WSPD ${wspdKt}KT${maxKt !== null ? ` MAX ${maxKt}` : ""}: Vento de superficie de ${wspdKt} nos (~${wspdKmh?.toFixed(2)} km/h)${maxKt !== null ? `, com rajadas maximas de ${maxKt} nos (~${maxKmh?.toFixed(2)} km/h)` : ""}.`
+        : "- WSPD: N/D",
+      hasFcstNc
+        ? "- FCST NC: Sem mudancas significativas previstas durante o periodo de validade."
+        : "- FCST NC: N/D",
+      "",
+      `Mensagem original: ${warningText}`,
+    ].join("\n");
+  }, [statusData?.warningText, warningIcaos, aiswebData, icao, utcNow]);
+
   const {
     data: aiswebData,
     isFetching: isFetchingAisweb,
@@ -248,6 +351,17 @@ export default function Dashboard() {
       window.clearTimeout(alarmTimeoutRef.current);
       alarmTimeoutRef.current = null;
     }
+  };
+
+  const acknowledgeSilenceAndEmail = () => {
+    stopAlarm();
+    const warningText = statusData?.warningText ?? "";
+    const subject = `Aerodrome Warning ${icao.toUpperCase()}${warningText ? " - AD WRNG" : ""}`;
+    const body =
+      decodedWarningEmailBody ||
+      `Aerodromo: ${icao.toUpperCase()}\nMensagem: ${warningText || "N/D"}`;
+
+    window.location.href = `mailto:wilheim@outlook.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const triggerAlarm = () => {
@@ -839,7 +953,7 @@ export default function Dashboard() {
                   Acknowledge & Silence
                 </Button>
                 <Button
-                  onClick={stopAlarm}
+                  onClick={acknowledgeSilenceAndEmail}
                   className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
                 >
                   Acknowledge / Silence / E-Mail
