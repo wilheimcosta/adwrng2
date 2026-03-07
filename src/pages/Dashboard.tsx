@@ -491,7 +491,7 @@ export default function Dashboard() {
         return {
           hour: slot.label,
           isMissing: true,
-          message: "MENSAGEM METAR AUSENTE NO BANCO OPMET",
+          message: "METAR MESSAGE MISSING IN OPMET DATABASE",
           typeClass: "text-red-400 animate-pulse font-black",
           transmissionLabel: "--",
           transmissionClass: "text-red-400",
@@ -560,7 +560,7 @@ export default function Dashboard() {
         return {
           hour: slot.label,
           isMissing: true,
-          message: "MENSAGEM SYNOP AUSENTE NO BANCO OPMET",
+          message: "SYNOP MESSAGE MISSING IN OPMET DATABASE",
           className: "text-red-400 font-bold",
         };
       }
@@ -585,6 +585,34 @@ export default function Dashboard() {
       synopHourlyRows.some((row) => row.isMissing),
     [metarHourlyRows, synopHourlyRows],
   );
+
+  const historySummary = useMemo(() => {
+    const metarCount = metarHourlyRows.filter(
+      (row) => !row.isMissing && /^METAR\b/.test(row.message.toUpperCase()),
+    ).length;
+    const speciCount = metarHourlyRows.filter(
+      (row) => !row.isMissing && /^SPECI\b/.test(row.message.toUpperCase()),
+    ).length;
+    const synopCount = synopHourlyRows.filter((row) => !row.isMissing).length;
+    const missingCount =
+      metarHourlyRows.filter((row) => row.isMissing).length +
+      synopHourlyRows.filter((row) => row.isMissing).length;
+    const delayedCount = metarHourlyRows.filter(
+      (row) => row.transmissionLabel === "DELAYED",
+    ).length;
+    const earlyCount = metarHourlyRows.filter(
+      (row) => row.transmissionLabel === "EARLY",
+    ).length;
+
+    return {
+      metarCount,
+      speciCount,
+      synopCount,
+      missingCount,
+      delayedCount,
+      earlyCount,
+    };
+  }, [metarHourlyRows, synopHourlyRows]);
 
   const decodedWarning = useMemo(() => {
     const warningText = (statusData?.warningText ?? "").trim();
@@ -1450,8 +1478,8 @@ export default function Dashboard() {
               <div
                 className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${
                   audioEnabled
-                    ? "left-4.5 bg-primary shadow-[0_0_8px_hsl(190_95%_55%/0.5)]"
-                    : "left-0.5 bg-muted-foreground/40"
+                    ? "left-0.5 translate-x-4 bg-primary shadow-[0_0_8px_hsl(190_95%_55%/0.5)]"
+                    : "left-0.5 translate-x-0 bg-muted-foreground/40"
                 }`}
               />
             </div>
@@ -1559,6 +1587,48 @@ export default function Dashboard() {
             </span>
           </div>
 
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="font-mono text-xs">
+              METAR: {historySummary.metarCount}
+            </Badge>
+            <Badge variant="outline" className="font-mono text-xs">
+              SPECI: {historySummary.speciCount}
+            </Badge>
+            <Badge variant="outline" className="font-mono text-xs">
+              SYNOP: {historySummary.synopCount}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={`font-mono text-xs ${
+                historySummary.missingCount > 0
+                  ? "text-red-300 border-red-500/40"
+                  : "text-emerald-300 border-emerald-500/35"
+              }`}
+            >
+              Missing: {historySummary.missingCount}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={`font-mono text-xs ${
+                historySummary.delayedCount > 0
+                  ? "text-red-300 border-red-500/40"
+                  : "text-muted-foreground"
+              }`}
+            >
+              Delayed: {historySummary.delayedCount}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={`font-mono text-xs ${
+                historySummary.earlyCount > 0
+                  ? "text-amber-300 border-amber-500/40"
+                  : "text-muted-foreground"
+              }`}
+            >
+              Early: {historySummary.earlyCount}
+            </Badge>
+          </div>
+
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
             <div className="rounded-lg border border-border/60 overflow-hidden">
               <div className="px-3 py-2 border-b border-border/60 bg-background/70">
@@ -1570,16 +1640,16 @@ export default function Dashboard() {
                 <table className="w-full text-xs sm:text-sm font-mono">
                   <thead className="sticky top-0 bg-background/95">
                     <tr className="text-center border-b border-border/60">
-                      <th className="px-2 py-2">Hora UTC</th>
-                      <th className="px-2 py-2">Mensagem</th>
-                      <th className="px-2 py-2">Transmissão</th>
+                      <th className="px-2 py-2">UTC Time</th>
+                      <th className="px-2 py-2">Message</th>
+                      <th className="px-2 py-2">Transmission</th>
                     </tr>
                   </thead>
                   <tbody>
                     {isFetchingMetarHistory && (
                       <tr>
                         <td colSpan={3} className="px-2 py-3 text-muted-foreground">
-                          Carregando histórico METAR...
+                          Loading METAR history...
                         </td>
                       </tr>
                     )}
@@ -1588,7 +1658,7 @@ export default function Dashboard() {
                         <td colSpan={3} className="px-2 py-3 text-red-300">
                           {metarHistoryError instanceof Error
                             ? metarHistoryError.message
-                            : "Erro ao carregar histórico METAR."}
+                            : "Failed to load METAR history."}
                         </td>
                       </tr>
                     )}
@@ -1624,15 +1694,15 @@ export default function Dashboard() {
                 <table className="w-full text-xs sm:text-sm font-mono">
                   <thead className="sticky top-0 bg-background/95">
                     <tr className="text-center border-b border-border/60">
-                      <th className="px-2 py-2">Hora UTC</th>
-                      <th className="px-2 py-2">Mensagem</th>
+                      <th className="px-2 py-2">UTC Time</th>
+                      <th className="px-2 py-2">Message</th>
                     </tr>
                   </thead>
                   <tbody>
                     {isFetchingSynopHistory && (
                       <tr>
                         <td colSpan={2} className="px-2 py-3 text-muted-foreground">
-                          Carregando histórico SYNOP...
+                          Loading SYNOP history...
                         </td>
                       </tr>
                     )}
@@ -1641,7 +1711,7 @@ export default function Dashboard() {
                         <td colSpan={2} className="px-2 py-3 text-red-300">
                           {synopHistoryError instanceof Error
                             ? synopHistoryError.message
-                            : "Erro ao carregar histórico SYNOP."}
+                            : "Failed to load SYNOP history."}
                         </td>
                       </tr>
                     )}
