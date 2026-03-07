@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChevronDown,
+  ChevronUp,
   AlertTriangle,
   BellRing,
   CheckCircle2,
   Clock,
+  History,
   Plane,
   RefreshCw,
   Shield,
@@ -20,7 +23,11 @@ import {
   extractIcaosFromAdWarning,
   fetchAerodromeStatusDetails,
   fetchAiswebAerodromes,
+  fetchMetarHistory24h,
+  fetchSynopHistory24h,
   mapFlightRuleFromFlag,
+  type MetarHistoryItem,
+  type SynopHistoryItem,
 } from "@/lib/redemet";
 
 const CHECK_INTERVAL_SECONDS = 30;
@@ -125,6 +132,67 @@ function flightRuleConfig(rule: "VFR" | "IFR" | "LIFR") {
   };
 }
 
+function parseUtcDate(dateTime: string): Date | null {
+  const value = String(dateTime ?? "").trim();
+  if (!value) return null;
+  const parsed = new Date(value.replace(" ", "T") + "Z");
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function toUtcHourKey(date: Date): string {
+  return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}${String(date.getUTCHours()).padStart(2, "0")}`;
+}
+
+function formatUtcHourLabel(date: Date): string {
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const hh = String(date.getUTCHours()).padStart(2, "0");
+  return `${dd}/${mm} ${hh}:00 UTC`;
+}
+
+function getLast24HourSlots(nowUtc: Date): { key: string; label: string }[] {
+  const base = new Date(
+    Date.UTC(
+      nowUtc.getUTCFullYear(),
+      nowUtc.getUTCMonth(),
+      nowUtc.getUTCDate(),
+      nowUtc.getUTCHours(),
+      0,
+      0,
+      0,
+    ),
+  );
+
+  const slots: { key: string; label: string }[] = [];
+  for (let i = 23; i >= 0; i -= 1) {
+    const d = new Date(base.getTime() - i * 60 * 60 * 1000);
+    slots.push({ key: toUtcHourKey(d), label: formatUtcHourLabel(d) });
+  }
+  return slots;
+}
+
+function metarTransmissionStatus(item: MetarHistoryItem): {
+  label: string;
+  className: string;
+} {
+  const msg = item.mens.toUpperCase();
+  const recebimentoDate = parseUtcDate(item.recebimento);
+  const validadeDate = parseUtcDate(item.validade_inicial);
+  if (!recebimentoDate || !validadeDate) {
+    return { label: "INVALID", className: "text-red-400" };
+  }
+
+  const mins = (recebimentoDate.getTime() - validadeDate.getTime()) / 60000;
+  const isCor = /\b(METAR|SPECI)\s+COR\b/.test(msg);
+  const isMetar = /^METAR\b/.test(msg) && !isCor;
+  const isSpeci = /^SPECI\b/.test(msg) && !isCor;
+
+  if (isCor) return { label: "COR", className: "text-amber-400" };
+  if (isMetar && mins >= -5 && mins < 5) return { label: "ON TIME", className: "text-emerald-400" };
+  if (isSpeci && mins >= 0 && mins < 15) return { label: "ON TIME", className: "text-emerald-400" };
+  return { label: "DELAYED", className: "text-red-400" };
+}
+
 /* ───────────────────── Component ───────────────────── */
 
 export default function Dashboard() {
@@ -134,6 +202,7 @@ export default function Dashboard() {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [showAlarmOverlay, setShowAlarmOverlay] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const alarmTimeoutRef = useRef<number | null>(null);
@@ -243,6 +312,130 @@ export default function Dashboard() {
     },
     enabled: Boolean(statusData?.hasAdWarning && warningIcaos.length > 0),
   });
+
+  const {
+    data: metarHistoryData,
+    isFetching: isFetchingMetarHistory,
+    error: metarHistoryError,
+  } = useQuery({
+    queryKey: ["metar-history-24h", icao],
+    queryFn: async () => {
+      const res = await fetchMetarHistory24h(icao);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: /^[A-Z]{4}$/.test(icao),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const {
+    data: synopHistoryData,
+    isFetching: isFetchingSynopHistory,
+    error: synopHistoryError,
+  } = useQuery({
+    queryKey: ["synop-history-24h", icao],
+    queryFn: async () => {
+      const res = await fetchSynopHistory24h(icao);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: /^[A-Z]{4}$/.test(icao),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const historySlots = useMemo(() => getLast24HourSlots(utcNow), [utcNow]);
+
+  const metarHourlyRows = useMemo(() => {
+    const byHour = new Map<string, MetarHistoryItem[]>();
+    (metarHistoryData ?? []).forEach((item) => {
+      const d = parseUtcDate(item.validade_inicial);
+      if (!d) return;
+      const key = toUtcHourKey(d);
+      const arr = byHour.get(key) ?? [];
+      arr.push(item);
+      byHour.set(key, arr);
+    });
+
+    return historySlots.map((slot) => {
+      const items = byHour.get(slot.key) ?? [];
+      if (!items.length) {
+        return {
+          hour: slot.label,
+          isMissing: true,
+          message: "MENSAGEM METAR AUSENTE NO BANCO OPMET",
+          typeClass: "text-red-400 animate-pulse font-black",
+          transmissionLabel: "--",
+          transmissionClass: "text-red-400",
+        };
+      }
+
+      const ordered = [...items].sort((a, b) => {
+        const ta = parseUtcDate(a.recebimento)?.getTime() ?? 0;
+        const tb = parseUtcDate(b.recebimento)?.getTime() ?? 0;
+        return tb - ta;
+      });
+      const best = ordered[0];
+      const upper = best.mens.toUpperCase();
+      const typeClass = upper.startsWith("SPECI")
+        ? "text-red-300"
+        : upper.startsWith("METAR COR")
+          ? "text-blue-300"
+          : "text-foreground";
+      const tx = metarTransmissionStatus(best);
+
+      return {
+        hour: slot.label,
+        isMissing: false,
+        message: best.mens,
+        typeClass,
+        transmissionLabel: tx.label,
+        transmissionClass: tx.className,
+      };
+    });
+  }, [metarHistoryData, historySlots]);
+
+  const synopHourlyRows = useMemo(() => {
+    const byHour = new Map<string, SynopHistoryItem[]>();
+    (synopHistoryData ?? []).forEach((item) => {
+      const d = parseUtcDate(item.validade_inicial);
+      if (!d) return;
+      const key = toUtcHourKey(d);
+      const arr = byHour.get(key) ?? [];
+      arr.push(item);
+      byHour.set(key, arr);
+    });
+
+    return historySlots.map((slot) => {
+      const items = byHour.get(slot.key) ?? [];
+      if (!items.length) {
+        return {
+          hour: slot.label,
+          isMissing: true,
+          message: "MENSAGEM SYNOP AUSENTE NO BANCO OPMET",
+          className: "text-red-400 font-bold",
+        };
+      }
+      const ordered = [...items].sort((a, b) => {
+        const ta = parseUtcDate(a.validade_inicial)?.getTime() ?? 0;
+        const tb = parseUtcDate(b.validade_inicial)?.getTime() ?? 0;
+        return tb - ta;
+      });
+
+      return {
+        hour: slot.label,
+        isMissing: false,
+        message: ordered[0].mens,
+        className: "text-foreground",
+      };
+    });
+  }, [synopHistoryData, historySlots]);
+
+  const hasHistoryGaps = useMemo(
+    () =>
+      metarHourlyRows.some((row) => row.isMissing) ||
+      synopHourlyRows.some((row) => row.isMissing),
+    [metarHourlyRows, synopHourlyRows],
+  );
 
   const decodedWarning = useMemo(() => {
     const warningText = (statusData?.warningText ?? "").trim();
@@ -1134,6 +1327,24 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setShowHistoryPanel((prev) => !prev)}
+                className={`h-7 px-2.5 text-[11px] font-mono uppercase tracking-wider border ${
+                  hasHistoryGaps
+                    ? "bg-red-500/15 text-red-300 border-red-500/45 animate-pulse"
+                    : "bg-emerald-500/12 text-emerald-300 border-emerald-500/35"
+                }`}
+              >
+                <History className="w-3 h-3 mr-1" />
+                History
+                {showHistoryPanel ? (
+                  <ChevronUp className="w-3 h-3 ml-1" />
+                ) : (
+                  <ChevronDown className="w-3 h-3 ml-1" />
+                )}
+              </Button>
               {isMetarDelayed && (
                 <Badge
                   variant="outline"
@@ -1183,6 +1394,127 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {showHistoryPanel && (
+        <div className="card-neon p-3 sm:p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm sm:text-base font-bold font-mono uppercase tracking-wide text-foreground">
+              History :: Last 24h
+            </h3>
+            <span
+              className={`text-xs font-mono uppercase tracking-wider ${
+                hasHistoryGaps ? "text-red-300" : "text-emerald-300"
+              }`}
+            >
+              {hasHistoryGaps ? "Gaps Detected" : "No Gaps"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-border/60 overflow-hidden">
+              <div className="px-3 py-2 border-b border-border/60 bg-background/70">
+                <p className="text-xs font-mono font-bold uppercase tracking-wider text-primary">
+                  METAR (24h)
+                </p>
+              </div>
+              <div className="max-h-[340px] overflow-auto">
+                <table className="w-full text-xs sm:text-sm font-mono">
+                  <thead className="sticky top-0 bg-background/95">
+                    <tr className="text-left border-b border-border/60">
+                      <th className="px-2 py-2">Hora UTC</th>
+                      <th className="px-2 py-2">Mensagem</th>
+                      <th className="px-2 py-2">Transmissão</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isFetchingMetarHistory && (
+                      <tr>
+                        <td colSpan={3} className="px-2 py-3 text-muted-foreground">
+                          Carregando histórico METAR...
+                        </td>
+                      </tr>
+                    )}
+                    {metarHistoryError && !isFetchingMetarHistory && (
+                      <tr>
+                        <td colSpan={3} className="px-2 py-3 text-red-300">
+                          {metarHistoryError instanceof Error
+                            ? metarHistoryError.message
+                            : "Erro ao carregar histórico METAR."}
+                        </td>
+                      </tr>
+                    )}
+                    {!isFetchingMetarHistory &&
+                      !metarHistoryError &&
+                      metarHourlyRows.map((row, idx) => (
+                        <tr key={`metar-${idx}`} className="border-b border-border/40 align-top">
+                          <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
+                            {row.hour}
+                          </td>
+                          <td className={`px-2 py-2 break-words ${row.typeClass}`}>
+                            {row.message}
+                          </td>
+                          <td
+                            className={`px-2 py-2 font-bold whitespace-nowrap ${row.transmissionClass}`}
+                          >
+                            {row.transmissionLabel}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border/60 overflow-hidden">
+              <div className="px-3 py-2 border-b border-border/60 bg-background/70">
+                <p className="text-xs font-mono font-bold uppercase tracking-wider text-amber-300">
+                  SYNOP (24h)
+                </p>
+              </div>
+              <div className="max-h-[340px] overflow-auto">
+                <table className="w-full text-xs sm:text-sm font-mono">
+                  <thead className="sticky top-0 bg-background/95">
+                    <tr className="text-left border-b border-border/60">
+                      <th className="px-2 py-2">Hora UTC</th>
+                      <th className="px-2 py-2">Mensagem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isFetchingSynopHistory && (
+                      <tr>
+                        <td colSpan={2} className="px-2 py-3 text-muted-foreground">
+                          Carregando histórico SYNOP...
+                        </td>
+                      </tr>
+                    )}
+                    {synopHistoryError && !isFetchingSynopHistory && (
+                      <tr>
+                        <td colSpan={2} className="px-2 py-3 text-red-300">
+                          {synopHistoryError instanceof Error
+                            ? synopHistoryError.message
+                            : "Erro ao carregar histórico SYNOP."}
+                        </td>
+                      </tr>
+                    )}
+                    {!isFetchingSynopHistory &&
+                      !synopHistoryError &&
+                      synopHourlyRows.map((row, idx) => (
+                        <tr key={`synop-${idx}`} className="border-b border-border/40 align-top">
+                          <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
+                            {row.hour}
+                          </td>
+                          <td className={`px-2 py-2 break-words ${row.className}`}>
+                            {row.message}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Warning / Status Area ── */}
       <div className="relative min-h-[200px]">

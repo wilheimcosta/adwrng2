@@ -27,6 +27,17 @@ export type AiswebAerodrome = {
   uf: string;
 };
 
+export type MetarHistoryItem = {
+  mens: string;
+  recebimento: string;
+  validade_inicial: string;
+};
+
+export type SynopHistoryItem = {
+  mens: string;
+  validade_inicial: string;
+};
+
 function toTitleCase(value: string): string {
   return String(value ?? "")
     .toLocaleLowerCase("pt-BR")
@@ -60,6 +71,18 @@ function formatNetworkError(error: unknown, fallback: string): string {
     return "Falha de conexão com a API da REDEMET. Verifique VITE_REDEMET_API_KEY e conectividade.";
   }
   return message || fallback;
+}
+
+function getUtcHourTimestamp(hoursAgo = 0): string {
+  const date = new Date();
+  if (hoursAgo > 0) {
+    date.setUTCHours(date.getUTCHours() - hoursAgo);
+  }
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hour = String(date.getUTCHours()).padStart(2, "0");
+  return `${year}${month}${day}${hour}`;
 }
 
 function extractAdWarning(reportText: string): { hasAdWarning: boolean; warningText: string | null } {
@@ -276,6 +299,106 @@ export async function fetchAiswebAerodromes(codes: string[]): Promise<{ data: Ai
     return {
       data: [],
       error: formatNetworkError(error, "Falha ao consultar AISWEB."),
+    };
+  }
+}
+
+export async function fetchMetarHistory24h(icao: string): Promise<{ data: MetarHistoryItem[]; error?: string }> {
+  const apiKey = import.meta.env.VITE_REDEMET_API_KEY;
+  if (!apiKey) {
+    return { data: [], error: "VITE_REDEMET_API_KEY não configurada no .env." };
+  }
+
+  const station = String(icao ?? "").toUpperCase().trim();
+  if (!/^[A-Z]{4}$/.test(station)) {
+    return { data: [], error: "ICAO inválido para consulta METAR." };
+  }
+
+  const dataFim = getUtcHourTimestamp(0);
+  const dataIni = getUtcHourTimestamp(24);
+
+  try {
+    const url = new URL(`https://api-redemet.decea.mil.br/mensagens/metar/${station}`);
+    url.searchParams.set("api_key", apiKey);
+    url.searchParams.set("data_ini", dataIni);
+    url.searchParams.set("data_fim", dataFim);
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+
+    if (!response.ok) {
+      return { data: [], error: `REDEMET retornou ${response.status} para METAR.` };
+    }
+
+    const payload = await response.json();
+    const rows = Array.isArray((payload as any)?.data?.data) ? (payload as any).data.data : [];
+    const data: MetarHistoryItem[] = rows
+      .map((item: any) => ({
+        mens: String(item?.mens ?? ""),
+        recebimento: String(item?.recebimento ?? ""),
+        validade_inicial: String(item?.validade_inicial ?? ""),
+      }))
+      .filter((item: MetarHistoryItem) => item.mens && item.validade_inicial);
+
+    return { data };
+  } catch (error) {
+    return {
+      data: [],
+      error: formatNetworkError(error, "Falha ao consultar histórico METAR."),
+    };
+  }
+}
+
+export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopHistoryItem[]; error?: string }> {
+  const apiKey = import.meta.env.VITE_REDEMET_API_KEY;
+  if (!apiKey) {
+    return { data: [], error: "VITE_REDEMET_API_KEY não configurada no .env." };
+  }
+
+  const station = String(icao ?? "").toUpperCase().trim();
+  if (!/^[A-Z]{4}$/.test(station)) {
+    return { data: [], error: "ICAO inválido para consulta SYNOP." };
+  }
+
+  const synopStationByIcao: Record<string, string> = {
+    SBMQ: "82099",
+  };
+  const estacao = synopStationByIcao[station] ?? station;
+  const dataFim = getUtcHourTimestamp(0);
+  const dataIni = getUtcHourTimestamp(24);
+
+  try {
+    const url = new URL("https://api-redemet.decea.mil.br/mensagens/synop");
+    url.searchParams.set("api_key", apiKey);
+    url.searchParams.set("estacao", estacao);
+    url.searchParams.set("data_ini", dataIni);
+    url.searchParams.set("data_fim", dataFim);
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+
+    if (!response.ok) {
+      return { data: [], error: `REDEMET retornou ${response.status} para SYNOP.` };
+    }
+
+    const payload = await response.json();
+    const rows = Array.isArray((payload as any)?.data?.data) ? (payload as any).data.data : [];
+    const data: SynopHistoryItem[] = rows
+      .map((item: any) => ({
+        mens: String(item?.mens ?? ""),
+        validade_inicial: String(item?.validade_inicial ?? ""),
+      }))
+      .filter((item: SynopHistoryItem) => item.mens && item.validade_inicial);
+
+    return { data };
+  } catch (error) {
+    return {
+      data: [],
+      error: formatNetworkError(error, "Falha ao consultar histórico SYNOP."),
     };
   }
 }
