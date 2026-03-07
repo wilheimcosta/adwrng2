@@ -176,11 +176,28 @@ function toUtcHourKey(date: Date): string {
   return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}${String(date.getUTCHours()).padStart(2, "0")}`;
 }
 
+function utcHourKeyToMs(key: string): number {
+  if (!/^\d{10}$/.test(key)) return 0;
+  const year = Number(key.slice(0, 4));
+  const month = Number(key.slice(4, 6));
+  const day = Number(key.slice(6, 8));
+  const hour = Number(key.slice(8, 10));
+  return Date.UTC(year, month - 1, day, hour, 0, 0, 0);
+}
+
 function formatUtcHourLabel(date: Date): string {
   const dd = String(date.getUTCDate()).padStart(2, "0");
   const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
   const hh = String(date.getUTCHours()).padStart(2, "0");
   return `${dd}/${mm} ${hh}:00 UTC`;
+}
+
+function formatUtcMinuteLabel(date: Date): string {
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const hh = String(date.getUTCHours()).padStart(2, "0");
+  const mi = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${dd}/${mm} ${hh}:${mi} UTC`;
 }
 
 function getLast24HourSlots(nowUtc: Date): { key: string; label: string }[] {
@@ -436,18 +453,36 @@ export default function Dashboard() {
   const synopSlots = useMemo(() => getSynop24hPublicationSlots(utcNow), [utcNow]);
 
   const metarHourlyRows = useMemo(() => {
-    const byHour = new Map<string, MetarHistoryItem[]>();
-    (metarHistoryData ?? []).forEach((item) => {
-      const d = getMessageNominalUtc(item);
-      if (!d) return;
-      const key = toUtcHourKey(d);
-      const arr = byHour.get(key) ?? [];
-      arr.push(item);
-      byHour.set(key, arr);
-    });
+    type MetarRow = {
+      hour: string;
+      isMissing: boolean;
+      message: string;
+      typeClass: string;
+      transmissionLabel: string;
+      transmissionClass: string;
+      sortTs: number;
+    };
 
-    const rows = historySlots.map((slot) => {
-      const items = byHour.get(slot.key) ?? [];
+    const normalized = (metarHistoryData ?? [])
+      .map((item) => {
+        const nominal = getMessageNominalUtc(item);
+        if (!nominal) return null;
+        return { item, nominal, upper: item.mens.toUpperCase() };
+      })
+      .filter(Boolean) as { item: MetarHistoryItem; nominal: Date; upper: string }[];
+
+    const metarByHour = new Map<string, { item: MetarHistoryItem; nominal: Date; upper: string }[]>();
+    normalized
+      .filter(({ upper }) => /^METAR\b/.test(upper))
+      .forEach((entry) => {
+        const key = toUtcHourKey(entry.nominal);
+        const arr = metarByHour.get(key) ?? [];
+        arr.push(entry);
+        metarByHour.set(key, arr);
+      });
+
+    const metarScheduledRows: MetarRow[] = historySlots.map((slot) => {
+      const items = metarByHour.get(slot.key) ?? [];
       if (!items.length) {
         return {
           hour: slot.label,
@@ -456,6 +491,7 @@ export default function Dashboard() {
           typeClass: "text-red-400 animate-pulse font-black",
           transmissionLabel: "--",
           transmissionClass: "text-red-400",
+          sortTs: utcHourKeyToMs(slot.key),
         };
       }
 
@@ -464,7 +500,7 @@ export default function Dashboard() {
         const tb = parseUtcDate(b.recebimento)?.getTime() ?? 0;
         return tb - ta;
       });
-      const best = ordered[0];
+      const best = ordered[0].item;
       const upper = best.mens.toUpperCase();
       const typeClass = upper.startsWith("SPECI")
         ? "text-red-300"
@@ -472,6 +508,7 @@ export default function Dashboard() {
           ? "text-blue-300"
           : "text-foreground";
       const tx = metarTransmissionStatus(best);
+      const nominal = getMessageNominalUtc(best);
 
       return {
         hour: slot.label,
@@ -480,9 +517,26 @@ export default function Dashboard() {
         typeClass,
         transmissionLabel: tx.label,
         transmissionClass: tx.className,
+        sortTs: nominal?.getTime() ?? utcHourKeyToMs(slot.key),
       };
     });
-    return rows.reverse();
+
+    const speciRows: MetarRow[] = normalized
+      .filter(({ upper }) => /^SPECI\b/.test(upper))
+      .map(({ item, nominal }) => {
+        const tx = metarTransmissionStatus(item);
+        return {
+          hour: formatUtcMinuteLabel(nominal),
+          isMissing: false,
+          message: item.mens,
+          typeClass: "text-red-300",
+          transmissionLabel: tx.label,
+          transmissionClass: tx.className,
+          sortTs: nominal.getTime(),
+        };
+      });
+
+    return [...metarScheduledRows, ...speciRows].sort((a, b) => b.sortTs - a.sortTs);
   }, [metarHistoryData, historySlots]);
 
   const synopHourlyRows = useMemo(() => {
