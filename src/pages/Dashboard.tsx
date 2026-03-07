@@ -139,6 +139,39 @@ function parseUtcDate(dateTime: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function resolveDayHourMinuteWithReference(
+  day: number,
+  hour: number,
+  minute: number,
+  reference: Date,
+): Date {
+  const y = reference.getUTCFullYear();
+  const m = reference.getUTCMonth();
+  const candidate = new Date(Date.UTC(y, m, day, hour, minute, 0, 0));
+  const diffDays = Math.round((candidate.getTime() - reference.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays > 20) return new Date(Date.UTC(y, m - 1, day, hour, minute, 0, 0));
+  if (diffDays < -20) return new Date(Date.UTC(y, m + 1, day, hour, minute, 0, 0));
+  return candidate;
+}
+
+function getMessageNominalUtc(item: MetarHistoryItem): Date | null {
+  const ref =
+    parseUtcDate(item.validade_inicial) ??
+    parseUtcDate(item.recebimento) ??
+    new Date();
+
+  const match = String(item.mens ?? "").toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
+  if (!match) return parseUtcDate(item.validade_inicial) ?? null;
+
+  const day = Number(match[1]);
+  const hour = Number(match[2]);
+  const minute = Number(match[3]);
+  if ([day, hour, minute].some((v) => Number.isNaN(v))) {
+    return parseUtcDate(item.validade_inicial) ?? null;
+  }
+  return resolveDayHourMinuteWithReference(day, hour, minute, ref);
+}
+
 function toUtcHourKey(date: Date): string {
   return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}${String(date.getUTCHours()).padStart(2, "0")}`;
 }
@@ -215,25 +248,35 @@ function metarTransmissionStatus(item: MetarHistoryItem): {
 } {
   const msg = item.mens.toUpperCase();
   const recebimentoDate = parseUtcDate(item.recebimento);
-  const validadeDate = parseUtcDate(item.validade_inicial);
-  if (!recebimentoDate || !validadeDate) {
+  const nominalDate = getMessageNominalUtc(item);
+  if (!recebimentoDate || !nominalDate) {
     return { label: "INVALID", className: "text-red-400" };
   }
-
-  const mins = (recebimentoDate.getTime() - validadeDate.getTime()) / 60000;
   const isCor = /\b(METAR|SPECI)\s+COR\b/.test(msg);
   const isMetar = /^METAR\b/.test(msg) && !isCor;
   const isSpeci = /^SPECI\b/.test(msg) && !isCor;
 
   if (isCor) return { label: "COR", className: "text-amber-400" };
   if (isMetar) {
-    if (mins < -5) return { label: "EARLY", className: "text-amber-300 animate-pulse" };
-    if (mins < 5) return { label: "ON TIME", className: "text-emerald-400" };
+    const rangeStart = new Date(nominalDate.getTime() - 5 * 60 * 1000); // HH:55:00
+    const rangeEndExclusive = new Date(nominalDate.getTime() + 5 * 60 * 1000); // HH:05:00
+    if (recebimentoDate < rangeStart) {
+      return { label: "EARLY", className: "text-amber-300 animate-pulse" };
+    }
+    if (recebimentoDate < rangeEndExclusive) {
+      return { label: "ON TIME", className: "text-emerald-400" };
+    }
     return { label: "DELAYED", className: "text-red-400 animate-pulse" };
   }
   if (isSpeci) {
-    if (mins < 0) return { label: "EARLY", className: "text-amber-300 animate-pulse" };
-    if (mins < 15) return { label: "ON TIME", className: "text-emerald-400" };
+    const rangeStart = nominalDate; // HH:MM:00
+    const rangeEndExclusive = new Date(nominalDate.getTime() + 15 * 60 * 1000); // HH:MM+15:00
+    if (recebimentoDate < rangeStart) {
+      return { label: "EARLY", className: "text-amber-300 animate-pulse" };
+    }
+    if (recebimentoDate < rangeEndExclusive) {
+      return { label: "ON TIME", className: "text-emerald-400" };
+    }
     return { label: "DELAYED", className: "text-red-400 animate-pulse" };
   }
   return { label: "UNKNOWN", className: "text-muted-foreground" };
@@ -395,7 +438,7 @@ export default function Dashboard() {
   const metarHourlyRows = useMemo(() => {
     const byHour = new Map<string, MetarHistoryItem[]>();
     (metarHistoryData ?? []).forEach((item) => {
-      const d = parseUtcDate(item.validade_inicial);
+      const d = getMessageNominalUtc(item);
       if (!d) return;
       const key = toUtcHourKey(d);
       const arr = byHour.get(key) ?? [];
