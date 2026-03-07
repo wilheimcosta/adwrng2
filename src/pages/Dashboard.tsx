@@ -226,9 +226,17 @@ function metarTransmissionStatus(item: MetarHistoryItem): {
   const isSpeci = /^SPECI\b/.test(msg) && !isCor;
 
   if (isCor) return { label: "COR", className: "text-amber-400" };
-  if (isMetar && mins >= -5 && mins < 5) return { label: "ON TIME", className: "text-emerald-400" };
-  if (isSpeci && mins >= 0 && mins < 15) return { label: "ON TIME", className: "text-emerald-400" };
-  return { label: "DELAYED", className: "text-red-400" };
+  if (isMetar) {
+    if (mins < -5) return { label: "EARLY", className: "text-amber-300 animate-pulse" };
+    if (mins < 5) return { label: "ON TIME", className: "text-emerald-400" };
+    return { label: "DELAYED", className: "text-red-400 animate-pulse" };
+  }
+  if (isSpeci) {
+    if (mins < 0) return { label: "EARLY", className: "text-amber-300 animate-pulse" };
+    if (mins < 15) return { label: "ON TIME", className: "text-emerald-400" };
+    return { label: "DELAYED", className: "text-red-400 animate-pulse" };
+  }
+  return { label: "UNKNOWN", className: "text-muted-foreground" };
 }
 
 /* ───────────────────── Component ───────────────────── */
