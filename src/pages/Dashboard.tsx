@@ -344,6 +344,15 @@ export default function Dashboard() {
   });
 
   const historySlots = useMemo(() => getLast24HourSlots(utcNow), [utcNow]);
+  const synopExpectedHours = useMemo(() => new Set([0, 3, 6, 9, 12, 15, 18, 21]), []);
+  const synopSlots = useMemo(
+    () =>
+      historySlots.filter((slot) => {
+        const hour = Number(slot.key.slice(-2));
+        return synopExpectedHours.has(hour);
+      }),
+    [historySlots, synopExpectedHours],
+  );
 
   const metarHourlyRows = useMemo(() => {
     const byHour = new Map<string, MetarHistoryItem[]>();
@@ -405,7 +414,7 @@ export default function Dashboard() {
       byHour.set(key, arr);
     });
 
-    return historySlots.map((slot) => {
+    return synopSlots.map((slot) => {
       const items = byHour.get(slot.key) ?? [];
       if (!items.length) {
         return {
@@ -428,7 +437,7 @@ export default function Dashboard() {
         className: "text-foreground",
       };
     });
-  }, [synopHistoryData, historySlots]);
+  }, [synopHistoryData, synopSlots]);
 
   const hasHistoryGaps = useMemo(
     () =>
