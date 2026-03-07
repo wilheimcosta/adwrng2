@@ -1502,7 +1502,7 @@ export default function Dashboard() {
                             {row.message}
                           </td>
                           <td
-                            className={`px-2 py-2 font-bold whitespace-nowrap ${row.transmissionClass}`}
+                            className={`px-2 py-2 font-bold whitespace-nowrap text-center ${row.transmissionClass}`}
                           >
                             {row.transmissionLabel}
                           </td>
