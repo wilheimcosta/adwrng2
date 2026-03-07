@@ -431,7 +431,9 @@ export default function Dashboard() {
       return res.data;
     },
     enabled: /^[A-Z]{4}$/.test(icao),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+    refetchIntervalInBackground: true,
   });
 
   const {
@@ -446,7 +448,9 @@ export default function Dashboard() {
       return res.data;
     },
     enabled: /^[A-Z]{4}$/.test(icao),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+    refetchIntervalInBackground: true,
   });
 
   const historySlots = useMemo(() => getLast24HourSlots(utcNow), [utcNow]);
