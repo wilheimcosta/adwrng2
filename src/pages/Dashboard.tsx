@@ -171,6 +171,44 @@ function getLast24HourSlots(nowUtc: Date): { key: string; label: string }[] {
   return slots;
 }
 
+function getLatestSynopPublicationDate(nowUtc: Date): Date {
+  const validHours = [0, 3, 6, 9, 12, 15, 18, 21];
+  const currentHour = nowUtc.getUTCHours();
+  const latestHour = [...validHours].reverse().find((h) => h <= currentHour);
+  const base = new Date(
+    Date.UTC(
+      nowUtc.getUTCFullYear(),
+      nowUtc.getUTCMonth(),
+      nowUtc.getUTCDate(),
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
+
+  if (typeof latestHour === "number") {
+    base.setUTCHours(latestHour);
+    return base;
+  }
+
+  // Before 00:00 publication of current UTC day is available, fallback to previous day 21Z
+  base.setUTCDate(base.getUTCDate() - 1);
+  base.setUTCHours(21);
+  return base;
+}
+
+function getSynop24hPublicationSlots(nowUtc: Date): { key: string; label: string }[] {
+  const latest = getLatestSynopPublicationDate(nowUtc);
+  // 24h window for 3-hour publication cycle => 9 slots (inclusive)
+  const slots: { key: string; label: string }[] = [];
+  for (let i = 0; i <= 8; i += 1) {
+    const d = new Date(latest.getTime() - i * 3 * 60 * 60 * 1000);
+    slots.push({ key: toUtcHourKey(d), label: formatUtcHourLabel(d) });
+  }
+  return slots;
+}
+
 function metarTransmissionStatus(item: MetarHistoryItem): {
   label: string;
   className: string;
@@ -344,15 +382,7 @@ export default function Dashboard() {
   });
 
   const historySlots = useMemo(() => getLast24HourSlots(utcNow), [utcNow]);
-  const synopExpectedHours = useMemo(() => new Set([0, 3, 6, 9, 12, 15, 18, 21]), []);
-  const synopSlots = useMemo(
-    () =>
-      historySlots.filter((slot) => {
-        const hour = Number(slot.key.slice(-2));
-        return synopExpectedHours.has(hour);
-      }),
-    [historySlots, synopExpectedHours],
-  );
+  const synopSlots = useMemo(() => getSynop24hPublicationSlots(utcNow), [utcNow]);
 
   const metarHourlyRows = useMemo(() => {
     const byHour = new Map<string, MetarHistoryItem[]>();
