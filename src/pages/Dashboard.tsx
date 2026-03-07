@@ -1611,7 +1611,7 @@ export default function Dashboard() {
               variant="outline"
               className={`font-mono text-xs ${
                 historySummary.delayedCount > 0
-                  ? "text-red-300 border-red-500/40"
+                  ? "bg-red-500/20 text-red-200 border-red-500/60"
                   : "text-muted-foreground"
               }`}
             >
