@@ -395,7 +395,7 @@ export default function Dashboard() {
       byHour.set(key, arr);
     });
 
-    return historySlots.map((slot) => {
+    const rows = historySlots.map((slot) => {
       const items = byHour.get(slot.key) ?? [];
       if (!items.length) {
         return {
@@ -431,6 +431,7 @@ export default function Dashboard() {
         transmissionClass: tx.className,
       };
     });
+    return rows.reverse();
   }, [metarHistoryData, historySlots]);
 
   const synopHourlyRows = useMemo(() => {
@@ -1459,7 +1460,7 @@ export default function Dashboard() {
               <div className="max-h-[340px] overflow-auto">
                 <table className="w-full text-xs sm:text-sm font-mono">
                   <thead className="sticky top-0 bg-background/95">
-                    <tr className="text-left border-b border-border/60">
+                    <tr className="text-center border-b border-border/60">
                       <th className="px-2 py-2">Hora UTC</th>
                       <th className="px-2 py-2">Mensagem</th>
                       <th className="px-2 py-2">Transmissão</th>
@@ -1489,7 +1490,7 @@ export default function Dashboard() {
                           <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
                             {row.hour}
                           </td>
-                          <td className={`px-2 py-2 break-words ${row.typeClass}`}>
+                          <td className={`px-2 py-2 break-words text-justify ${row.typeClass}`}>
                             {row.message}
                           </td>
                           <td
@@ -1513,7 +1514,7 @@ export default function Dashboard() {
               <div className="max-h-[340px] overflow-auto">
                 <table className="w-full text-xs sm:text-sm font-mono">
                   <thead className="sticky top-0 bg-background/95">
-                    <tr className="text-left border-b border-border/60">
+                    <tr className="text-center border-b border-border/60">
                       <th className="px-2 py-2">Hora UTC</th>
                       <th className="px-2 py-2">Mensagem</th>
                     </tr>
@@ -1542,7 +1543,7 @@ export default function Dashboard() {
                           <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
                             {row.hour}
                           </td>
-                          <td className={`px-2 py-2 break-words ${row.className}`}>
+                          <td className={`px-2 py-2 break-words text-justify ${row.className}`}>
                             {row.message}
                           </td>
                         </tr>
