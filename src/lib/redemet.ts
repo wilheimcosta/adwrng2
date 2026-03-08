@@ -97,6 +97,12 @@ type IcaoWmoLookup = {
 };
 
 const wmoCache = new Map<string, string>();
+const knownWmoByIcao: Record<string, string> = {
+  SBBE: "82193",
+  SBEG: "82111",
+  SBMQ: "82099",
+  SBPA: "83971",
+};
 
 async function icaoParaWmo(icao: string): Promise<IcaoWmoLookup> {
   const code = String(icao ?? "").trim().toUpperCase();
@@ -105,23 +111,45 @@ async function icaoParaWmo(icao: string): Promise<IcaoWmoLookup> {
     return { source: "aviationweather", error: "ICAO inválido. Exemplo: SBGR" };
   }
 
-  const url = `https://aviationweather.gov/api/data/stationinfo?ids=${encodeURIComponent(code)}&format=json`;
+  const externalUrl = `https://aviationweather.gov/api/data/stationinfo?ids=${encodeURIComponent(code)}&format=json`;
+  const candidates = [
+    `/api/stationinfo?ids=${encodeURIComponent(code)}&format=json`,
+    externalUrl,
+    `https://corsproxy.io/?${encodeURIComponent(externalUrl)}`,
+  ];
 
-  const response = await fetch(url, {
-    method: "GET",
-    // `User-Agent` cannot be set from browser fetch (forbidden header); keep Accept only.
-    headers: { Accept: "application/json" },
-  });
+  let data: unknown = null;
+  let lastHttpStatus: number | null = null;
 
-  if (response.status === 204) {
-    return { source: "aviationweather", error: "Estação não encontrada" };
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      if (response.status === 204) {
+        return { source: "aviationweather", error: "Estação não encontrada" };
+      }
+      if (!response.ok) {
+        lastHttpStatus = response.status;
+        continue;
+      }
+
+      data = await response.json();
+      break;
+    } catch {
+      // Try next candidate URL
+    }
   }
 
-  if (!response.ok) {
-    return { source: "aviationweather", error: `Erro HTTP ${response.status}` };
+  if (!data) {
+    return {
+      source: "aviationweather",
+      error: lastHttpStatus ? `Erro HTTP ${lastHttpStatus}` : "Falha de conexão na consulta do ICAO.",
+    };
   }
 
-  const data = await response.json();
   if (!Array.isArray(data) || data.length === 0) {
     return { source: "aviationweather", error: "Estação não encontrada" };
   }
@@ -150,10 +178,17 @@ async function fetchWmoIdByIcao(icao: string): Promise<string | null> {
   try {
     const lookup = await icaoParaWmo(station);
     const wmo = lookup.wmo ?? null;
-    if (wmo) wmoCache.set(station, wmo);
-    return wmo;
+    if (wmo) {
+      wmoCache.set(station, wmo);
+      return wmo;
+    }
+    const fallback = knownWmoByIcao[station] ?? null;
+    if (fallback) wmoCache.set(station, fallback);
+    return fallback;
   } catch {
-    return null;
+    const fallback = knownWmoByIcao[station] ?? null;
+    if (fallback) wmoCache.set(station, fallback);
+    return fallback;
   }
 }
 

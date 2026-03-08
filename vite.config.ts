@@ -11,6 +11,24 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      "/api/stationinfo": {
+        target: "https://aviationweather.gov",
+        changeOrigin: true,
+        secure: true,
+        rewrite: () => "/api/data/stationinfo",
+      },
+    },
+  },
+  preview: {
+    proxy: {
+      "/api/stationinfo": {
+        target: "https://aviationweather.gov",
+        changeOrigin: true,
+        secure: true,
+        rewrite: () => "/api/data/stationinfo",
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
