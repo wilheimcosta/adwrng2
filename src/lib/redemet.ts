@@ -97,13 +97,38 @@ type IcaoWmoLookup = {
 };
 
 const wmoCache = new Map<string, string>();
-const knownWmoByIcao: Record<string, string> = {
-  SBBE: "82193",
-  SBEG: "82111",
-  SBGR: "83075",
-  SBMQ: "82099",
-  SBPA: "83971",
-};
+let wmoCsvMapPromise: Promise<Map<string, string>> | null = null;
+
+async function loadWmoMapFromCsv(): Promise<Map<string, string>> {
+  if (wmoCsvMapPromise) return wmoCsvMapPromise;
+
+  wmoCsvMapPromise = (async () => {
+    const response = await fetch("/StationList_WMO.csv", {
+      method: "GET",
+      headers: { Accept: "text/csv,text/plain;q=0.9,*/*;q=0.8" },
+    });
+    if (!response.ok) {
+      throw new Error(`Falha ao carregar StationList_WMO.csv (${response.status}).`);
+    }
+
+    const csv = await response.text();
+    const map = new Map<string, string>();
+    const lines = csv.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    for (let i = 1; i < lines.length; i += 1) {
+      const line = lines[i];
+      const match = line.match(/^([^,]+),.*?,(\d{5})$/);
+      if (!match) continue;
+      const icao = String(match[1] ?? "").trim().toUpperCase();
+      const wmo = String(match[2] ?? "").trim();
+      if (/^[A-Z0-9]{4}$/.test(icao) && /^\d{5}$/.test(wmo)) {
+        map.set(icao, wmo);
+      }
+    }
+    return map;
+  })();
+
+  return wmoCsvMapPromise;
+}
 
 async function icaoParaWmo(icao: string): Promise<IcaoWmoLookup> {
   const code = String(icao ?? "").trim().toUpperCase();
@@ -212,6 +237,13 @@ async function fetchWmoIdByIcao(icao: string): Promise<string | null> {
   if (wmoCache.has(station)) return wmoCache.get(station) ?? null;
 
   try {
+    const csvMap = await loadWmoMapFromCsv();
+    const csvWmo = csvMap.get(station) ?? null;
+    if (csvWmo) {
+      wmoCache.set(station, csvWmo);
+      return csvWmo;
+    }
+
     const redemetWmo = await fetchWmoIdFromRedemetMetar(station);
     if (redemetWmo) {
       wmoCache.set(station, redemetWmo);
@@ -224,13 +256,9 @@ async function fetchWmoIdByIcao(icao: string): Promise<string | null> {
       wmoCache.set(station, wmo);
       return wmo;
     }
-    const fallback = knownWmoByIcao[station] ?? null;
-    if (fallback) wmoCache.set(station, fallback);
-    return fallback;
+    return null;
   } catch {
-    const fallback = knownWmoByIcao[station] ?? null;
-    if (fallback) wmoCache.set(station, fallback);
-    return fallback;
+    return null;
   }
 }
 
