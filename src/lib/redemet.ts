@@ -96,7 +96,7 @@ type IcaoWmoLookup = {
   error?: string;
 };
 
-const wmoCache = new Map<string, string | null>();
+const wmoCache = new Map<string, string>();
 
 async function icaoParaWmo(icao: string): Promise<IcaoWmoLookup> {
   const code = String(icao ?? "").trim().toUpperCase();
@@ -150,7 +150,7 @@ async function fetchWmoIdByIcao(icao: string): Promise<string | null> {
   try {
     const lookup = await icaoParaWmo(station);
     const wmo = lookup.wmo ?? null;
-    wmoCache.set(station, wmo);
+    if (wmo) wmoCache.set(station, wmo);
     return wmo;
   } catch {
     return null;
@@ -438,6 +438,7 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
     SBBE: "82193",
     SBEG: "82111",
     SBMQ: "82099",
+    SBPA: "83967",
   };
   const wmoId = await fetchWmoIdByIcao(station);
   const estacao = wmoId ?? synopStationFallbackByIcao[station] ?? null;
