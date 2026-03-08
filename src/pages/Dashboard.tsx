@@ -575,11 +575,14 @@ export default function Dashboard() {
         const tb = parseUtcDate(b.validade_inicial)?.getTime() ?? 0;
         return tb - ta;
       });
+      const messages = Array.from(
+        new Set(ordered.map((item) => String(item.mens ?? "").trim()).filter(Boolean)),
+      );
 
       return {
         hour: slot.label,
         isMissing: false,
-        message: ordered[0].mens,
+        message: messages.join("\n"),
         className: "text-foreground",
       };
     });
@@ -1731,7 +1734,9 @@ export default function Dashboard() {
                           <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
                             {row.hour}
                           </td>
-                          <td className={`px-2 py-2 break-words text-justify ${row.className}`}>
+                          <td
+                            className={`px-2 py-2 break-words whitespace-pre-wrap text-justify ${row.className}`}
+                          >
                             {row.message}
                           </td>
                         </tr>
