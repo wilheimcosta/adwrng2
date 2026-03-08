@@ -100,6 +100,7 @@ const wmoCache = new Map<string, string>();
 const knownWmoByIcao: Record<string, string> = {
   SBBE: "82193",
   SBEG: "82111",
+  SBGR: "83075",
   SBMQ: "82099",
   SBPA: "83971",
 };
@@ -170,12 +171,53 @@ async function icaoParaWmo(icao: string): Promise<IcaoWmoLookup> {
   };
 }
 
+async function fetchWmoIdFromRedemetMetar(icao: string): Promise<string | null> {
+  const apiKey = import.meta.env.VITE_REDEMET_API_KEY;
+  if (!apiKey) return null;
+
+  const station = String(icao ?? "").toUpperCase().trim();
+  if (!/^[A-Z0-9]{4}$/.test(station)) return null;
+
+  const dataFim = getUtcHourTimestamp(0);
+  const dataIni = getUtcHourTimestamp(24);
+
+  try {
+    const url = new URL(`https://api-redemet.decea.mil.br/mensagens/metar/${station}`);
+    url.searchParams.set("api_key", apiKey);
+    url.searchParams.set("data_ini", dataIni);
+    url.searchParams.set("data_fim", dataFim);
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) return null;
+
+    const payload = await response.json();
+    const rows = Array.isArray((payload as any)?.data?.data) ? (payload as any).data.data : [];
+    const first = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    const raw = first?.id_estacao ?? first?.idEstacao ?? first?.idEstacaoWmo ?? null;
+    if (raw === null || raw === undefined) return null;
+
+    const normalized = String(raw).trim();
+    return /^\d{4,6}$/.test(normalized) ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchWmoIdByIcao(icao: string): Promise<string | null> {
   const station = String(icao ?? "").toUpperCase().trim();
   if (!/^[A-Z0-9]{4}$/.test(station)) return null;
   if (wmoCache.has(station)) return wmoCache.get(station) ?? null;
 
   try {
+    const redemetWmo = await fetchWmoIdFromRedemetMetar(station);
+    if (redemetWmo) {
+      wmoCache.set(station, redemetWmo);
+      return redemetWmo;
+    }
+
     const lookup = await icaoParaWmo(station);
     const wmo = lookup.wmo ?? null;
     if (wmo) {
