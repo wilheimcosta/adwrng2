@@ -397,6 +397,7 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
 
   const synopStationFallbackByIcao: Record<string, string> = {
     SBBE: "82193",
+    SBEG: "82111",
     SBMQ: "82099",
   };
   const wmoId = await fetchWmoIdByIcao(station);
