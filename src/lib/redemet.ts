@@ -162,7 +162,7 @@ async function icaoParaWmo(icao: string): Promise<IcaoWmoLookup> {
 
   return {
     icao: station.icaoId ?? code,
-    wmo: normalizedWmo && /^\d{4,6}$/.test(normalizedWmo) ? normalizedWmo : null,
+    wmo: normalizedWmo && /^\d{5}$/.test(normalizedWmo) ? normalizedWmo : null,
     name: station.name ?? station.site ?? null,
     latitude: station.lat ?? null,
     longitude: station.lon ?? null,
@@ -200,7 +200,7 @@ async function fetchWmoIdFromRedemetMetar(icao: string): Promise<string | null> 
     if (raw === null || raw === undefined) return null;
 
     const normalized = String(raw).trim();
-    return /^\d{4,6}$/.test(normalized) ? normalized : null;
+    return /^\d{5}$/.test(normalized) ? normalized : null;
   } catch {
     return null;
   }
