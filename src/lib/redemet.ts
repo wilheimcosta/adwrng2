@@ -85,6 +85,39 @@ function getUtcHourTimestamp(hoursAgo = 0): string {
   return `${year}${month}${day}${hour}`;
 }
 
+const wmoCache = new Map<string, string>();
+
+async function fetchWmoIdByIcao(icao: string): Promise<string | null> {
+  const station = String(icao ?? "").toUpperCase().trim();
+  if (!/^[A-Z]{4}$/.test(station)) return null;
+  if (wmoCache.has(station)) return wmoCache.get(station) ?? null;
+
+  try {
+    const url = new URL("https://aviationweather.gov/api/data/stationinfo");
+    url.searchParams.set("ids", station);
+    url.searchParams.set("format", "json");
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) return null;
+
+    const payload = await response.json();
+    const row = Array.isArray(payload) ? payload[0] : null;
+    const raw = row?.wmoId ?? null;
+    if (raw === null || raw === undefined) return null;
+
+    const normalized = String(raw).trim();
+    if (!/^\d{4,6}$/.test(normalized)) return null;
+
+    wmoCache.set(station, normalized);
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
 function extractAdWarning(reportText: string): { hasAdWarning: boolean; warningText: string | null } {
   const normalized = String(reportText ?? "");
   if (!normalized.trim()) return { hasAdWarning: false, warningText: null };
@@ -362,10 +395,18 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
     return { data: [], error: "ICAO inválido para consulta SYNOP." };
   }
 
-  const synopStationByIcao: Record<string, string> = {
+  const synopStationFallbackByIcao: Record<string, string> = {
     SBMQ: "82099",
   };
-  const estacao = synopStationByIcao[station] ?? station;
+  const wmoId = await fetchWmoIdByIcao(station);
+  const estacao = wmoId ?? synopStationFallbackByIcao[station] ?? null;
+  if (!estacao) {
+    return {
+      data: [],
+      error: `Nao foi possivel determinar o WMO ID para ${station}.`,
+    };
+  }
+
   const dataFim = getUtcHourTimestamp(0);
   const dataIni = getUtcHourTimestamp(24);
 
