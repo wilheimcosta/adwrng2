@@ -85,34 +85,73 @@ function getUtcHourTimestamp(hoursAgo = 0): string {
   return `${year}${month}${day}${hour}`;
 }
 
-const wmoCache = new Map<string, string>();
+type IcaoWmoLookup = {
+  icao?: string;
+  wmo?: string | null;
+  name?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  elevation_m?: number | null;
+  source: "aviationweather";
+  error?: string;
+};
+
+const wmoCache = new Map<string, string | null>();
+
+async function icaoParaWmo(icao: string): Promise<IcaoWmoLookup> {
+  const code = String(icao ?? "").trim().toUpperCase();
+
+  if (!/^[A-Z0-9]{4}$/.test(code)) {
+    return { source: "aviationweather", error: "ICAO inválido. Exemplo: SBGR" };
+  }
+
+  const url = `https://aviationweather.gov/api/data/stationinfo?ids=${encodeURIComponent(code)}&format=json`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    // `User-Agent` cannot be set from browser fetch (forbidden header); keep Accept only.
+    headers: { Accept: "application/json" },
+  });
+
+  if (response.status === 204) {
+    return { source: "aviationweather", error: "Estação não encontrada" };
+  }
+
+  if (!response.ok) {
+    return { source: "aviationweather", error: `Erro HTTP ${response.status}` };
+  }
+
+  const data = await response.json();
+  if (!Array.isArray(data) || data.length === 0) {
+    return { source: "aviationweather", error: "Estação não encontrada" };
+  }
+
+  const station = data[0] ?? {};
+  const rawWmo = station.wmoId ?? station.wmoid ?? station.wmo ?? null;
+  const normalizedWmo =
+    rawWmo !== null && rawWmo !== undefined ? String(rawWmo).trim() : null;
+
+  return {
+    icao: station.icaoId ?? code,
+    wmo: normalizedWmo && /^\d{4,6}$/.test(normalizedWmo) ? normalizedWmo : null,
+    name: station.name ?? station.site ?? null,
+    latitude: station.lat ?? null,
+    longitude: station.lon ?? null,
+    elevation_m: station.elev ?? null,
+    source: "aviationweather",
+  };
+}
 
 async function fetchWmoIdByIcao(icao: string): Promise<string | null> {
   const station = String(icao ?? "").toUpperCase().trim();
-  if (!/^[A-Z]{4}$/.test(station)) return null;
+  if (!/^[A-Z0-9]{4}$/.test(station)) return null;
   if (wmoCache.has(station)) return wmoCache.get(station) ?? null;
 
   try {
-    const url = new URL("https://aviationweather.gov/api/data/stationinfo");
-    url.searchParams.set("ids", station);
-    url.searchParams.set("format", "json");
-
-    const response = await fetch(url.toString(), {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) return null;
-
-    const payload = await response.json();
-    const row = Array.isArray(payload) ? payload[0] : null;
-    const raw = row?.wmoId ?? row?.wmoid ?? row?.wmo ?? null;
-    if (raw === null || raw === undefined) return null;
-
-    const normalized = String(raw).trim();
-    if (!/^\d{4,6}$/.test(normalized)) return null;
-
-    wmoCache.set(station, normalized);
-    return normalized;
+    const lookup = await icaoParaWmo(station);
+    const wmo = lookup.wmo ?? null;
+    wmoCache.set(station, wmo);
+    return wmo;
   } catch {
     return null;
   }
