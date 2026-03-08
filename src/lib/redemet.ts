@@ -105,7 +105,7 @@ async function fetchWmoIdByIcao(icao: string): Promise<string | null> {
 
     const payload = await response.json();
     const row = Array.isArray(payload) ? payload[0] : null;
-    const raw = row?.wmoId ?? null;
+    const raw = row?.wmoId ?? row?.wmoid ?? row?.wmo ?? null;
     if (raw === null || raw === undefined) return null;
 
     const normalized = String(raw).trim();
@@ -396,6 +396,7 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
   }
 
   const synopStationFallbackByIcao: Record<string, string> = {
+    SBBE: "82193",
     SBMQ: "82099",
   };
   const wmoId = await fetchWmoIdByIcao(station);
