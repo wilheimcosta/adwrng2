@@ -434,15 +434,8 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
     return { data: [], error: "ICAO inválido para consulta SYNOP." };
   }
 
-  const synopStationFallbackByIcao: Record<string, string> = {
-    SBBE: "82193",
-    SBEG: "82111",
-    SBMQ: "82099",
-    SBPA: "83967",
-  };
   const wmoId = await fetchWmoIdByIcao(station);
-  const estacao = wmoId ?? synopStationFallbackByIcao[station] ?? null;
-  if (!estacao) {
+  if (!wmoId) {
     return {
       data: [],
       error: `Nao foi possivel determinar o WMO ID para ${station}.`,
@@ -455,7 +448,7 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
   try {
     const url = new URL("https://api-redemet.decea.mil.br/mensagens/synop");
     url.searchParams.set("api_key", apiKey);
-    url.searchParams.set("estacao", estacao);
+    url.searchParams.set("estacao", wmoId);
     url.searchParams.set("data_ini", dataIni);
     url.searchParams.set("data_fim", dataFim);
 
