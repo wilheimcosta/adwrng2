@@ -464,6 +464,7 @@ export default function Dashboard() {
       typeClass: string;
       transmissionLabel: string;
       transmissionClass: string;
+      transmissionTime: string;
       sortTs: number;
     };
 
@@ -495,6 +496,7 @@ export default function Dashboard() {
           typeClass: "text-red-400 animate-pulse font-black",
           transmissionLabel: "--",
           transmissionClass: "text-red-400",
+          transmissionTime: "--",
           sortTs: utcHourKeyToMs(slot.key),
         };
       }
@@ -513,6 +515,7 @@ export default function Dashboard() {
           : "text-foreground";
       const tx = metarTransmissionStatus(best);
       const nominal = getMessageNominalUtc(best);
+      const receivedAt = parseUtcDate(best.recebimento);
 
       return {
         hour: slot.label,
@@ -521,6 +524,7 @@ export default function Dashboard() {
         typeClass,
         transmissionLabel: tx.label,
         transmissionClass: tx.className,
+        transmissionTime: receivedAt ? formatUtcMinuteLabel(receivedAt) : "--",
         sortTs: nominal?.getTime() ?? utcHourKeyToMs(slot.key),
       };
     });
@@ -529,6 +533,7 @@ export default function Dashboard() {
       .filter(({ upper }) => /^SPECI\b/.test(upper))
       .map(({ item, nominal }) => {
         const tx = metarTransmissionStatus(item);
+        const receivedAt = parseUtcDate(item.recebimento);
         return {
           hour: formatUtcMinuteLabel(nominal),
           isMissing: false,
@@ -536,6 +541,7 @@ export default function Dashboard() {
           typeClass: "text-red-300",
           transmissionLabel: tx.label,
           transmissionClass: tx.className,
+          transmissionTime: receivedAt ? formatUtcMinuteLabel(receivedAt) : "--",
           sortTs: nominal.getTime(),
         };
       });
@@ -1675,7 +1681,10 @@ export default function Dashboard() {
                           <td
                             className={`px-2 py-2 font-bold whitespace-nowrap text-center ${row.transmissionClass}`}
                           >
-                            {row.transmissionLabel}
+                            <div>{row.transmissionLabel}</div>
+                            <div className="text-[10px] font-normal text-muted-foreground mt-0.5">
+                              {row.transmissionTime}
+                            </div>
                           </td>
                         </tr>
                       ))}
