@@ -1564,7 +1564,7 @@ export default function Dashboard() {
         <div className="card-neon overflow-hidden">
           <div className="flex items-center px-3 sm:px-4 py-3 border-b border-border/60 neon-accent">
             <div className="flex items-center gap-2.5">
-              <div className="w-1 h-5 rounded-full bg-amber-400 shadow-[0_0_8px_hsl(38_92%_50%/0.3)]" />
+              <div className="w-1 h-5 rounded-full bg-primary shadow-[0_0_8px_hsl(190_95%_55%/0.3)]" />
               <span className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">
                 TAF
               </span>
