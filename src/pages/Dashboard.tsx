@@ -742,10 +742,7 @@ export default function Dashboard() {
 
     const wsLine =
       decodedWarning.wspdKt !== null
-        ? `Previsão de velocidade do vento na superfície de ${decodedWarning.wspdKt} nós (~${ktToKmH(decodedWarning.wspdKt).toFixed(2)} km/h)` +
-          (decodedWarning.maxKt !== null
-            ? `, com rajadas máximas de ${decodedWarning.maxKt} nós (~${ktToKmH(decodedWarning.maxKt).toFixed(2)} km/h).`
-            : ".")
+        ? `Previsão de velocidade do vento na superfície de ${decodedWarning.wspdKt} nós (~${ktToKmH(decodedWarning.wspdKt).toFixed(2)} km/h), com rajadas máximas de ${decodedWarning.maxKt ?? decodedWarning.wspdKt} nós (~${ktToKmH(decodedWarning.maxKt ?? decodedWarning.wspdKt).toFixed(2)} km/h).`
         : "Sem informação de velocidade do vento.";
 
     const rawValidity =
@@ -753,72 +750,86 @@ export default function Dashboard() {
         ? `${decodedWarning.startsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCMinutes().toString().padStart(2, "0")}/${decodedWarning.endsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCMinutes().toString().padStart(2, "0")}`
         : "N/D";
 
-    const generatedAt = formatUtcDateTime(new Date());
+    const startsAtLabel = decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D";
+    const endsAtLabel = decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D";
+    const issuedLabel = formatPtBrMonthYear(new Date());
+    const warningNumber = decodedWarning.number ?? "N/D";
+    const aerodromeList =
+      decodedWarning.aerodromes.length > 0
+        ? decodedWarning.aerodromes
+            .map((item) => `<li><b>${escapeHtml(item.code)}:</b> ${escapeHtml(item.detail.replace(`${item.code}: `, ""))}</li>`)
+            .join("")
+        : "<li>N/D</li>";
 
-    const htmlBody = `
-<html>
+    const htmlBody = `<!doctype html>
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="x-apple-disable-message-reformatting" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AD WRNG ${escapeHtml(decodedWarning.number ?? "")}</title>
+    <title>Relatório Dinâmico AD WRNG</title>
     <style>
-      body { margin: 0; padding: 0; background: #07101d; }
-      .shell { width: 100%; background: radial-gradient(circle at 12% 0%, #15345a 0, #07101d 52%); padding: 24px 0; }
-      .card { max-width: 900px; margin: 0 auto; background: #0f1a2b; border: 1px solid #254262; border-radius: 12px; overflow: hidden; }
-      .head { background: linear-gradient(90deg, #13233a 0%, #0f1a2b 100%); border-bottom: 1px solid #254262; padding: 20px; }
-      .title { margin: 0; color: #ebf3ff; font: 700 22px/1.2 'Segoe UI', Arial, sans-serif; }
-      .subtitle { margin: 6px 0 0; color: #94a8c8; font: 600 12px/1.4 'Segoe UI', Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
-      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 16px 20px 0; }
-      .info { background: #13233a; border: 1px solid #28486c; border-radius: 10px; padding: 12px; }
-      .lbl { color: #94a8c8; font: 700 11px/1.3 'Segoe UI', Arial, sans-serif; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px; }
-      .val { color: #ebf3ff; font: 600 13px/1.4 'Segoe UI', Arial, sans-serif; }
-      .main { padding: 16px 20px 20px; }
-      .alert { display: inline-block; color: #ffb4b6; border: 1px solid #ff5f62; border-radius: 999px; padding: 5px 10px; font: 700 11px/1 'Segoe UI', Arial, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
-      .warn { margin-top: 12px; background: #0f1a2b; border-left: 3px solid #ff5f62; padding: 12px; color: #ebf3ff; font: 600 13px/1.55 Consolas, 'Courier New', monospace; white-space: pre-wrap; }
-      .item { margin-top: 10px; background: #13233a; border: 1px solid #28486c; border-radius: 10px; padding: 10px 12px; }
-      .item b { color: #dff4ff; font: 700 13px/1.4 'Segoe UI', Arial, sans-serif; }
-      .item p { margin: 4px 0 0; color: #c2d5f0; font: 600 13px/1.5 'Segoe UI', Arial, sans-serif; }
-      .note { margin-top: 14px; color: #ffd0d0; font: 700 12px/1.4 'Segoe UI', Arial, sans-serif; }
-      .dot { display: inline-block; width: 9px; height: 9px; border-radius: 999px; background: #30d39d; margin-right: 8px; animation: pulse 1.6s ease-in-out infinite; vertical-align: middle; }
-      .icon { display: inline-block; margin-right: 8px; animation: float 1.9s ease-in-out infinite; }
-      @keyframes pulse { 0%,100% { transform: scale(1); opacity: .7; } 50% { transform: scale(1.25); opacity: 1; } }
-      @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
-      @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+      body{margin:0;padding:0;background:#061328;color:#e6f0ff;font-family:'Segoe UI',Arial,sans-serif}
+      .bg{padding:24px;background:radial-gradient(circle at 14% 18%, rgba(41,135,178,.20), transparent 28%),radial-gradient(circle at 88% 78%, rgba(30,100,186,.20), transparent 28%),linear-gradient(90deg,#061328 0%,#061a35 50%,#061328 100%)}
+      .wrap{max-width:1020px;margin:0 auto;background:linear-gradient(180deg,#0f2545 0%,#0b1c35 100%);border:1px solid #26568f;border-radius:18px;padding:16px}
+      .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+      .pill{display:inline-block;padding:8px 14px;border:1px solid #2f679e;border-radius:999px;background:#0e2a4d;color:#d8e9ff;font-size:13px;font-weight:700}
+      .title{margin:14px 0 12px;font-size:44px;font-weight:800;letter-spacing:.2px;color:#eaf3ff}
+      .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+      .card{border:1px solid #2a6299;border-radius:12px;padding:14px;background:rgba(8,28,54,.72);min-height:74px}
+      .card .label{display:block;color:#9cc3e8;font-size:13px;font-weight:700;text-transform:uppercase;margin-bottom:7px}
+      .card .value{color:#f2f7ff;font-size:26px;font-weight:800;line-height:1.25}
+      .lead{margin:14px 0 10px;color:#bfd4ee;font-size:18px}
+      .section{margin:10px 0 6px;font-size:22px;font-weight:800;color:#e6f0ff}
+      ul{margin:0 0 12px 22px;padding:0;font-size:17px;line-height:1.45;color:#d6e4f7}
+      .item{margin-top:10px;border:1px solid #2a6299;border-radius:12px;padding:12px 14px;background:rgba(11,31,58,.65)}
+      .item b{font-size:29px;color:#f1f6ff}
+      .item p{margin:6px 0 0;font-size:17px;color:#c9dcf4;line-height:1.45}
+      .note{margin-top:12px;border:1px solid #7b2f45;border-radius:12px;background:rgba(66,18,32,.45);padding:10px 14px;font-size:17px;font-weight:800;color:#ffd6dc}
+      @media (max-width:780px){.cards{grid-template-columns:1fr}.title{font-size:34px}.item b{font-size:23px}}
     </style>
   </head>
   <body>
-    <div class="shell">
-      <div class="card">
-        <div class="head">
-          <h1 class="title"><span class="dot"></span>PILOT ALERT :: AD WRNG REPORT</h1>
-          <p class="subtitle">SYSTEM ACTIVE · EMAIL HTML DINÂMICO · OUTLOOK</p>
+    <div class="bg">
+      <div class="wrap">
+        <div class="top">
+          <span class="pill">🟢 Relatório Dinâmico AD WRNG</span>
         </div>
 
-        <div class="grid">
-          <div class="info"><div class="lbl">ICAO</div><div class="val">${escapeHtml(icao.toUpperCase())}</div></div>
-          <div class="info"><div class="lbl">AD WRNG</div><div class="val">${escapeHtml(decodedWarning.number ?? "N/D")}</div></div>
-          <div class="info"><div class="lbl">Emitido (UTC)</div><div class="val">${escapeHtml(generatedAt)}</div></div>
+        <h1 class="title">AVISO DE AERÓDROMO Nº ${escapeHtml(warningNumber)} - ${escapeHtml(issuedLabel)}</h1>
+
+        <div class="cards">
+          <div class="card">
+            <span class="label">🕒 Validade Inicial</span>
+            <div class="value">${escapeHtml(startsAtLabel)}</div>
+          </div>
+          <div class="card">
+            <span class="label">🕒 Validade Final</span>
+            <div class="value">${escapeHtml(endsAtLabel)}</div>
+          </div>
+          <div class="card">
+            <span class="label">✉ Mensagem</span>
+            <div class="value">${escapeHtml(warningText)}</div>
+          </div>
         </div>
 
-        <div class="main">
-          <span class="alert">AD WRNG ACTIVE</span>
-          <div class="warn">${escapeHtml(warningText)}</div>
+        <p class="lead">Segue abaixo a decodificação detalhada para conhecimento e providências.</p>
+        <h2 class="section">Aeródromos Aplicáveis:</h2>
+        <ul>${aerodromeList}</ul>
 
-          <div class="item"><b><span class="icon">⏱️</span>VALID ${escapeHtml(rawValidity)}</b><p>Válido de <b>${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</b> até <b>${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</b>.</p></div>
-          <div class="item"><b><span class="icon">⛈️</span>TS</b><p>${decodedWarning.hasTs ? "Há previsão de trovoadas nos aeródromos mencionados." : "Não há indicação de trovoadas na mensagem."}</p></div>
-          <div class="item"><b><span class="icon">💨</span>${escapeHtml(decodedWarning.hasSfc ? "SFC " : "")}WSPD${decodedWarning.wspdKt !== null ? ` ${decodedWarning.wspdKt}KT` : ""}${decodedWarning.maxKt !== null ? ` MAX ${decodedWarning.maxKt}` : ""}</b><p>${escapeHtml(wsLine)}</p></div>
-          <div class="item"><b><span class="icon">📍</span>AERÓDROMOS CITADOS</b><p>${escapeHtml(decodedWarning.aerodromes.map((item) => item.detail).join("; ") || "N/D")}</p></div>
-          <div class="item"><b><span class="icon">ℹ️</span>FCST NC</b><p>${decodedWarning.hasFcstNc ? "Sem mudanças significativas previstas durante a validade do aviso." : "Sem indicação FCST NC na mensagem."}</p></div>
+        <div class="item"><b>🔺 AD WRNG ${escapeHtml(warningNumber)}:</b><p>Este é o aviso de aeródromo número ${escapeHtml(warningNumber)} emitido pelo CIMAER - Centro Integrado de Meteorologia Aeronáutica.</p></div>
+        <div class="item"><b>🕘 VALID ${escapeHtml(rawValidity)}:</b><p>O aviso é válido de <b>${escapeHtml(startsAtLabel)}</b> até <b>${escapeHtml(endsAtLabel)}</b>.</p></div>
+        <div class="item"><b>🌩️ TS (Trovoadas):</b><p>${decodedWarning.hasTs ? "Há previsão de trovoadas nos aeródromos mencionados." : "Não há indicação de trovoadas na mensagem."}</p></div>
+        <div class="item"><b>💨 ${escapeHtml(decodedWarning.hasSfc ? "SFC " : "")}WSPD ${decodedWarning.wspdKt ?? "N/D"}KT MAX ${decodedWarning.maxKt ?? "N/D"}:</b><p>${escapeHtml(wsLine)}</p></div>
+        <div class="item"><b>🧭 FCST NC:</b><p>${decodedWarning.hasFcstNc ? "Sem mudanças significativas previstas durante o período de validade do aviso." : "Sem indicação FCST NC na mensagem."}</p></div>
 
-          <p class="note">NOTA: 1 NÓ (KT) = 1,852 km/h · Fonte: REDEMET / AISWEB</p>
-        </div>
+        <div class="note">NOTA: 1 NÓ (KT) = 1,852 km/h</div>
       </div>
     </div>
   </body>
-</html>`.trim();
+</html>`;
 
-    const subject = `AD WRNG ${decodedWarning.number ?? "N/D"} - ${icao.toUpperCase()}`;
+    const subject = `AD WRNG ${warningNumber} - ${icao.toUpperCase()}`;
     const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(htmlBody)}`;
     window.location.href = mailtoUrl;
   };
@@ -1566,6 +1577,12 @@ export default function Dashboard() {
               )}
 
               <div className="w-full flex flex-col gap-3">
+                <Button
+                  onClick={stopAlarm}
+                  className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
+                >
+                  Silence
+                </Button>
                 <Button
                   onClick={handleAcknowledgeSilenceEmail}
                   className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
