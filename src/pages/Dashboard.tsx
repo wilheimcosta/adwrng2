@@ -87,6 +87,15 @@ function ktToKmH(value: number): number {
   return value * 1.852;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function translateUnavailableMessage(text: string, type: "METAR" | "TAF"): string | null {
   const regex = new RegExp(`${type}\\s+n[aã]o\\s+dispon[ií]vel\\s+para\\s+([A-Z]{4})`, "i");
   const match = String(text ?? "").match(regex);
@@ -744,36 +753,73 @@ export default function Dashboard() {
         ? `${decodedWarning.startsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCMinutes().toString().padStart(2, "0")}/${decodedWarning.endsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCMinutes().toString().padStart(2, "0")}`
         : "N/D";
 
-    const aerodromesLine =
-      decodedWarning.aerodromes.length > 0
-        ? decodedWarning.aerodromes
-            .map((item) => item.detail)
-            .join("; ")
-        : "N/D";
+    const generatedAt = formatUtcDateTime(new Date());
+
+    const htmlBody = `
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AD WRNG ${escapeHtml(decodedWarning.number ?? "")}</title>
+    <style>
+      body { margin: 0; padding: 0; background: #07101d; }
+      .shell { width: 100%; background: radial-gradient(circle at 12% 0%, #15345a 0, #07101d 52%); padding: 24px 0; }
+      .card { max-width: 900px; margin: 0 auto; background: #0f1a2b; border: 1px solid #254262; border-radius: 12px; overflow: hidden; }
+      .head { background: linear-gradient(90deg, #13233a 0%, #0f1a2b 100%); border-bottom: 1px solid #254262; padding: 20px; }
+      .title { margin: 0; color: #ebf3ff; font: 700 22px/1.2 'Segoe UI', Arial, sans-serif; }
+      .subtitle { margin: 6px 0 0; color: #94a8c8; font: 600 12px/1.4 'Segoe UI', Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 16px 20px 0; }
+      .info { background: #13233a; border: 1px solid #28486c; border-radius: 10px; padding: 12px; }
+      .lbl { color: #94a8c8; font: 700 11px/1.3 'Segoe UI', Arial, sans-serif; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px; }
+      .val { color: #ebf3ff; font: 600 13px/1.4 'Segoe UI', Arial, sans-serif; }
+      .main { padding: 16px 20px 20px; }
+      .alert { display: inline-block; color: #ffb4b6; border: 1px solid #ff5f62; border-radius: 999px; padding: 5px 10px; font: 700 11px/1 'Segoe UI', Arial, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+      .warn { margin-top: 12px; background: #0f1a2b; border-left: 3px solid #ff5f62; padding: 12px; color: #ebf3ff; font: 600 13px/1.55 Consolas, 'Courier New', monospace; white-space: pre-wrap; }
+      .item { margin-top: 10px; background: #13233a; border: 1px solid #28486c; border-radius: 10px; padding: 10px 12px; }
+      .item b { color: #dff4ff; font: 700 13px/1.4 'Segoe UI', Arial, sans-serif; }
+      .item p { margin: 4px 0 0; color: #c2d5f0; font: 600 13px/1.5 'Segoe UI', Arial, sans-serif; }
+      .note { margin-top: 14px; color: #ffd0d0; font: 700 12px/1.4 'Segoe UI', Arial, sans-serif; }
+      .dot { display: inline-block; width: 9px; height: 9px; border-radius: 999px; background: #30d39d; margin-right: 8px; animation: pulse 1.6s ease-in-out infinite; vertical-align: middle; }
+      .icon { display: inline-block; margin-right: 8px; animation: float 1.9s ease-in-out infinite; }
+      @keyframes pulse { 0%,100% { transform: scale(1); opacity: .7; } 50% { transform: scale(1.25); opacity: 1; } }
+      @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+      @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="card">
+        <div class="head">
+          <h1 class="title"><span class="dot"></span>PILOT ALERT :: AD WRNG REPORT</h1>
+          <p class="subtitle">SYSTEM ACTIVE · EMAIL HTML DINÂMICO · OUTLOOK</p>
+        </div>
+
+        <div class="grid">
+          <div class="info"><div class="lbl">ICAO</div><div class="val">${escapeHtml(icao.toUpperCase())}</div></div>
+          <div class="info"><div class="lbl">AD WRNG</div><div class="val">${escapeHtml(decodedWarning.number ?? "N/D")}</div></div>
+          <div class="info"><div class="lbl">Emitido (UTC)</div><div class="val">${escapeHtml(generatedAt)}</div></div>
+        </div>
+
+        <div class="main">
+          <span class="alert">AD WRNG ACTIVE</span>
+          <div class="warn">${escapeHtml(warningText)}</div>
+
+          <div class="item"><b><span class="icon">⏱️</span>VALID ${escapeHtml(rawValidity)}</b><p>Válido de <b>${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</b> até <b>${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</b>.</p></div>
+          <div class="item"><b><span class="icon">⛈️</span>TS</b><p>${decodedWarning.hasTs ? "Há previsão de trovoadas nos aeródromos mencionados." : "Não há indicação de trovoadas na mensagem."}</p></div>
+          <div class="item"><b><span class="icon">💨</span>${escapeHtml(decodedWarning.hasSfc ? "SFC " : "")}WSPD${decodedWarning.wspdKt !== null ? ` ${decodedWarning.wspdKt}KT` : ""}${decodedWarning.maxKt !== null ? ` MAX ${decodedWarning.maxKt}` : ""}</b><p>${escapeHtml(wsLine)}</p></div>
+          <div class="item"><b><span class="icon">📍</span>AERÓDROMOS CITADOS</b><p>${escapeHtml(decodedWarning.aerodromes.map((item) => item.detail).join("; ") || "N/D")}</p></div>
+          <div class="item"><b><span class="icon">ℹ️</span>FCST NC</b><p>${decodedWarning.hasFcstNc ? "Sem mudanças significativas previstas durante a validade do aviso." : "Sem indicação FCST NC na mensagem."}</p></div>
+
+          <p class="note">NOTA: 1 NÓ (KT) = 1,852 km/h · Fonte: REDEMET / AISWEB</p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>`.trim();
 
     const subject = `AD WRNG ${decodedWarning.number ?? "N/D"} - ${icao.toUpperCase()}`;
-    const bodyLines = [
-      "PILOT ALERT :: AD WRNG REPORT",
-      "",
-      `ICAO monitorado: ${icao.toUpperCase()}`,
-      `Data/hora UTC: ${formatUtcDateTime(new Date())}`,
-      "",
-      "Mensagem completa em vigor:",
-      warningText,
-      "",
-      `Validade (raw): ${rawValidity}`,
-      `Início UTC: ${decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D"}`,
-      `Fim UTC: ${decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D"}`,
-      `TS: ${decodedWarning.hasTs ? "SIM" : "NÃO"}`,
-      `SFC: ${decodedWarning.hasSfc ? "SIM" : "NÃO"}`,
-      `Vento: ${wsLine}`,
-      `FCST NC: ${decodedWarning.hasFcstNc ? "SIM" : "NÃO"}`,
-      `Aeródromos citados: ${aerodromesLine}`,
-      "",
-      "Fonte: REDEMET / AISWEB",
-    ];
-
-    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join("\r\n"))}`;
+    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(htmlBody)}`;
     window.location.href = mailtoUrl;
   };
 
