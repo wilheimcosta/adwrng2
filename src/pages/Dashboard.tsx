@@ -87,15 +87,6 @@ function ktToKmH(value: number): number {
   return value * 1.852;
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function translateUnavailableMessage(text: string, type: "METAR" | "TAF"): string | null {
   const regex = new RegExp(`${type}\\s+n[aã]o\\s+dispon[ií]vel\\s+para\\s+([A-Z]{4})`, "i");
   const match = String(text ?? "").match(regex);
@@ -736,6 +727,7 @@ export default function Dashboard() {
 
   const handleAcknowledgeSilenceEmail = () => {
     stopAlarm();
+
     const fallbackWarning = (statusData?.warningText ?? list[0]?.mensagem ?? "Sem mensagem de aviso.").trim();
     const warningText = decodedWarning.warningText || fallbackWarning;
 
@@ -747,441 +739,42 @@ export default function Dashboard() {
             : ".")
         : "Sem informação de velocidade do vento.";
 
-    const rawValidity = decodedWarning.startsAt && decodedWarning.endsAt
-      ? `${decodedWarning.startsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCMinutes().toString().padStart(2, "0")}/${decodedWarning.endsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCMinutes().toString().padStart(2, "0")}`
-      : "N/D";
+    const rawValidity =
+      decodedWarning.startsAt && decodedWarning.endsAt
+        ? `${decodedWarning.startsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.startsAt.getUTCMinutes().toString().padStart(2, "0")}/${decodedWarning.endsAt.getUTCDate().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCHours().toString().padStart(2, "0")}${decodedWarning.endsAt.getUTCMinutes().toString().padStart(2, "0")}`
+        : "N/D";
 
-    const html = `<!doctype html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Aviso de Aeródromo ${escapeHtml(decodedWarning.number ?? "")}</title>
-    <style>
-      :root {
-        --bg: #09111f;
-        --panel: #0f1a2b;
-        --panel-2: #13233a;
-        --ink: #ebf3ff;
-        --muted: #94a8c8;
-        --line: #254262;
-        --danger: #ff5f62;
-        --ok: #30d39d;
-        --accent: #39d6ff;
-        --violet: #7aa2ff;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        padding: 20px;
-        background:
-          radial-gradient(circle at 15% -10%, rgba(57, 214, 255, 0.22), transparent 34%),
-          radial-gradient(circle at 100% 0%, rgba(122, 162, 255, 0.18), transparent 40%),
-          linear-gradient(180deg, #07101d 0%, var(--bg) 100%);
-        color: var(--ink);
-        font-family: "Segoe UI", "IBM Plex Sans", "Trebuchet MS", Arial, sans-serif;
-        overflow-x: hidden;
-      }
-      .bg-tech {
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        z-index: 0;
-      }
-      .bg-tech .orb {
-        position: absolute;
-        width: 160px;
-        height: 160px;
-        border-radius: 999px;
-        border: 1px solid rgba(57, 214, 255, 0.2);
-        filter: blur(0.2px);
-        animation: orbit 16s linear infinite;
-      }
-      .bg-tech .orb.one { top: 10%; left: 8%; animation-duration: 18s; }
-      .bg-tech .orb.two { top: 65%; right: 6%; animation-duration: 22s; }
-      .bg-tech .orb.three { bottom: 8%; left: 35%; animation-duration: 20s; }
-      .sheet {
-        position: relative;
-        z-index: 1;
-        max-width: 1100px;
-        margin: 0 auto;
-        background: linear-gradient(165deg, rgba(19, 35, 58, 0.92), rgba(15, 26, 43, 0.9));
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        padding: 16px;
-        box-shadow: 0 30px 80px rgba(3, 8, 16, 0.55);
-        backdrop-filter: blur(4px);
-        animation: fadeIn .5s ease-out;
-      }
-      .toolbar {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        margin-bottom: 10px;
-      }
-      .btn {
-        border: 1px solid #2e4f73;
-        color: var(--ink);
-        background: linear-gradient(180deg, #183051, #14263e);
-        border-radius: 10px;
-        padding: 8px 12px;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: .2px;
-        cursor: pointer;
-        transition: .25s ease;
-      }
-      .btn:hover { transform: translateY(-1px); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(57, 214, 255, .16); }
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        border: 1px solid #36557b;
-        border-radius: 999px;
-        background: rgba(8, 16, 30, .65);
-        color: #bfe8ff;
-        padding: 6px 12px;
-        font-size: 12px;
-        font-weight: 700;
-      }
-      .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 999px;
-        background: var(--ok);
-        box-shadow: 0 0 10px var(--ok);
-        animation: pulse 1.8s ease-in-out infinite;
-      }
-      .title {
-        margin: 10px 0 0;
-        font-size: 22px;
-        line-height: 1.2;
-        letter-spacing: .4px;
-      }
-      .head-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-        margin-top: 12px;
-      }
-      .head-card {
-        background: linear-gradient(180deg, rgba(14, 28, 47, .9), rgba(12, 22, 38, .8));
-        border: 1px solid #28486c;
-        border-radius: 10px;
-        padding: 10px;
-        min-height: 110px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        animation: slideUp .35s ease-out both;
-      }
-      .head-card:nth-child(2) { animation-delay: .05s; }
-      .head-card:nth-child(3) { animation-delay: .1s; }
-      .head-label {
-        font-size: 12px;
-        color: var(--muted);
-        font-weight: 700;
-        margin-bottom: 6px;
-        text-transform: uppercase;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .head-value {
-        font-weight: 700;
-        font-size: 14px;
-        width: 100%;
-        max-width: 100%;
-        text-align: justify;
-        text-align-last: center;
-        line-height: 1.35;
-        word-break: break-word;
-        overflow-wrap: anywhere;
-        hyphens: auto;
-      }
-      .head-icon {
-        width: 14px;
-        height: 14px;
-        display: inline-block;
-        animation: spinPulse 2.4s ease-in-out infinite;
-      }
-      .head-icon svg { width: 100%; height: 100%; fill: #9ed7ff; }
-      .lead { margin: 14px 0 10px; color: #b8c7de; }
-      .section-title { margin: 18px 0 8px; font-size: 15px; color: #dff4ff; }
-      ul { margin: 0; padding-left: 18px; color: #d3def1; }
-      li { margin: 4px 0; }
-      .decode { margin-top: 12px; display: grid; gap: 10px; }
-      .item {
-        border: 1px solid #2a4c73;
-        border-radius: 10px;
-        padding: 10px 12px;
-        background: linear-gradient(180deg, rgba(16, 33, 56, .95), rgba(13, 24, 42, .9));
-        display: grid;
-        grid-template-columns: 28px 1fr;
-        gap: 10px;
-        align-items: start;
-        animation: slideUp .35s ease-out both;
-      }
-      .item:nth-child(2) { animation-delay: .05s; }
-      .item:nth-child(3) { animation-delay: .10s; }
-      .item:nth-child(4) { animation-delay: .15s; }
-      .item:nth-child(5) { animation-delay: .20s; }
-      .icon {
-        width: 24px; height: 24px; border-radius: 50%;
-        display: inline-flex; align-items: center; justify-content: center;
-        background: #193150; border: 1px solid #2f577f;
-        animation: iconPulse 1.8s ease-in-out infinite;
-      }
-      .icon svg { width: 14px; height: 14px; fill: #b9d3ff; animation: iconFloat 2.2s ease-in-out infinite; transform-origin: 50% 50%; }
-      .item.warn .icon { background: rgba(179, 38, 30, .18); border-color: rgba(255, 95, 98, .4); }
-      .item.warn .icon svg { fill: var(--danger); }
-      .decode .item:nth-child(1) .icon svg { animation-name: iconWobble; animation-duration: 1.6s; }
-      .decode .item:nth-child(2) .icon svg { animation-name: iconSpin; animation-duration: 3.5s; }
-      .decode .item:nth-child(3) .icon svg { animation-name: iconFloat; animation-duration: 2.1s; }
-      .decode .item:nth-child(4) .icon svg { animation-name: iconWind; animation-duration: 1.9s; }
-      .decode .item:nth-child(5) .icon svg { animation-name: iconBlink; animation-duration: 1.5s; }
-      .item b { font-size: 14px; color: #e6f4ff; }
-      .item p { margin: 4px 0 0; color: #c2d5f0; }
-      .note {
-        margin-top: 12px;
-        color: #ffd0d0;
-        font-weight: 700;
-        background: rgba(179, 38, 30, .14);
-        border: 1px solid rgba(255, 95, 98, .4);
-        padding: 8px 10px;
-        border-radius: 10px;
-      }
-      .copy-status {
-        margin-left: 8px;
-        font-size: 12px;
-        color: #8ad6ae;
-      }
-      @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes pulse {
-        0%, 100% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.25); opacity: .55; }
-      }
-      @keyframes orbit {
-        0% { transform: translateY(0) scale(1) rotate(0deg); opacity: .45; }
-        50% { transform: translateY(-12px) scale(1.06) rotate(180deg); opacity: .75; }
-        100% { transform: translateY(0) scale(1) rotate(360deg); opacity: .45; }
-      }
-      @keyframes spinPulse {
-        0% { transform: rotate(0deg) scale(1); opacity: .8; }
-        50% { transform: rotate(180deg) scale(1.15); opacity: 1; }
-        100% { transform: rotate(360deg) scale(1); opacity: .8; }
-      }
-      @keyframes iconPulse {
-        0%,100% { box-shadow: 0 0 0 0 rgba(50, 65, 84, .18); }
-        50% { box-shadow: 0 0 0 6px rgba(50, 65, 84, 0); }
-      }
-      @keyframes iconFloat {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-2px); }
-      }
-      @keyframes iconWobble {
-        0%, 100% { transform: rotate(0deg) scale(1); }
-        25% { transform: rotate(-8deg) scale(1.05); }
-        75% { transform: rotate(8deg) scale(1.05); }
-      }
-      @keyframes iconSpin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-      @keyframes iconWind {
-        0%, 100% { transform: translateX(0); }
-        50% { transform: translateX(2px); }
-      }
-      @keyframes iconBlink {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: .45; transform: scale(0.9); }
-      }
-      @media (max-width: 900px) {
-        .head-grid { grid-template-columns: 1fr; }
-        .toolbar { justify-content: stretch; }
-        .btn { width: 100%; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="bg-tech" aria-hidden="true">
-      <span class="orb one"></span>
-      <span class="orb two"></span>
-      <span class="orb three"></span>
-    </div>
-    <main class="sheet">
-      <div class="toolbar">
-        <button class="btn" id="copy-outlook" type="button">Copiar Corpo para Outlook</button>
-        <button class="btn" id="save-html" type="button">Salvar HTML</button>
-        <span class="copy-status" id="copy-status"></span>
-      </div>
-      <span class="badge"><span class="dot"></span>Relatório Dinâmico AD WRNG</span>
-      <h1 class="title">AVISO DE AERÓDROMO Nº ${escapeHtml(decodedWarning.number ?? "--")} - ${escapeHtml(formatPtBrMonthYear(decodedWarning.startsAt ?? new Date()))}</h1>
+    const aerodromesLine =
+      decodedWarning.aerodromes.length > 0
+        ? decodedWarning.aerodromes
+            .map((item) => item.detail)
+            .join("; ")
+        : "N/D";
 
-      <section class="head-grid" id="outlook-body">
-        <div class="head-card">
-          <div class="head-label">
-            <span class="head-icon"><svg viewBox="0 0 24 24"><path d="M12 1a11 11 0 1 0 11 11A11 11 0 0 0 12 1Zm1 11.4 4.2 2.5-1 1.7L11 13.4V6h2Z"/></svg></span>
-            Validade Inicial
-          </div>
-          <div class="head-value">${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</div>
-        </div>
-        <div class="head-card">
-          <div class="head-label">
-            <span class="head-icon"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 14h-2v-2h2v2Zm0-4h-2V7h2v5Z"/></svg></span>
-            Validade Final
-          </div>
-          <div class="head-value">${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</div>
-        </div>
-        <div class="head-card">
-          <div class="head-label">
-            <span class="head-icon"><svg viewBox="0 0 24 24"><path d="M2 4h20v14H2V4Zm2 2v1.2l8 5.2 8-5.2V6l-8 5-8-5Z"/></svg></span>
-            Mensagem
-          </div>
-          <div class="head-value">${escapeHtml(warningText)}</div>
-        </div>
-      </section>
+    const subject = `AD WRNG ${decodedWarning.number ?? "N/D"} - ${icao.toUpperCase()}`;
+    const bodyLines = [
+      "PILOT ALERT :: AD WRNG REPORT",
+      "",
+      `ICAO monitorado: ${icao.toUpperCase()}`,
+      `Data/hora UTC: ${formatUtcDateTime(new Date())}`,
+      "",
+      "Mensagem completa em vigor:",
+      warningText,
+      "",
+      `Validade (raw): ${rawValidity}`,
+      `Início UTC: ${decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D"}`,
+      `Fim UTC: ${decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D"}`,
+      `TS: ${decodedWarning.hasTs ? "SIM" : "NÃO"}`,
+      `SFC: ${decodedWarning.hasSfc ? "SIM" : "NÃO"}`,
+      `Vento: ${wsLine}`,
+      `FCST NC: ${decodedWarning.hasFcstNc ? "SIM" : "NÃO"}`,
+      `Aeródromos citados: ${aerodromesLine}`,
+      "",
+      "Fonte: REDEMET / AISWEB",
+    ];
 
-      <p class="lead">Segue abaixo a decodificação detalhada para conhecimento e providências.</p>
-      <h3 class="section-title">Aeródromos Aplicáveis:</h3>
-      <ul>
-        ${decodedWarning.aerodromes.map((item) => `<li><b>${escapeHtml(item.code)}:</b> ${escapeHtml(item.detail.replace(`${item.code}: `, ""))}</li>`).join("") || "<li>N/D</li>"}
-      </ul>
-
-      <section class="decode">
-        <article class="item warn">
-          <span class="icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 1 21h22L12 2Zm1 15h-2v2h2v-2Zm0-8h-2v6h2V9Z"/></svg>
-          </span>
-          <div>
-            <b>AD WRNG ${escapeHtml(decodedWarning.number ?? "--")}:</b>
-            <p>Este é o aviso de aeródromo número ${escapeHtml(decodedWarning.number ?? "--")} emitido pelo CIMAER - Centro Integrado de Meteorologia Aeronáutica.</p>
-          </div>
-        </article>
-
-        <article class="item">
-          <span class="icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a11 11 0 1 0 11 11A11 11 0 0 0 12 1Zm1 11.4 4.2 2.5-1 1.7L11 13.4V6h2Z"/></svg>
-          </span>
-          <div>
-            <b>VALID ${escapeHtml(rawValidity)}:</b>
-            <p>O aviso é válido de <b>${escapeHtml(decodedWarning.startsAt ? formatUtcDateTime(decodedWarning.startsAt) : "N/D")}</b> até <b>${escapeHtml(decodedWarning.endsAt ? formatUtcDateTime(decodedWarning.endsAt) : "N/D")}</b>.</p>
-          </div>
-        </article>
-
-        <article class="item">
-          <span class="icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13a4 4 0 0 0-3.9-3 5 5 0 0 0-9.6 1.6A3.5 3.5 0 0 0 6 18h11a4 4 0 0 0 2-5Z"/></svg>
-          </span>
-          <div>
-            <b>TS (Trovoadas):</b>
-            <p>${decodedWarning.hasTs ? "Há previsão de trovoadas nos aeródromos mencionados." : "Não há indicação de trovoadas na mensagem."}</p>
-          </div>
-        </article>
-
-        <article class="item">
-          <span class="icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h10v2H3v-2Zm4-5h14v2H7V7Zm-2 10h14v2H5v-2Z"/></svg>
-          </span>
-          <div>
-            <b>${escapeHtml(decodedWarning.hasSfc ? "SFC " : "")}WSPD${decodedWarning.wspdKt !== null ? ` ${decodedWarning.wspdKt}KT` : ""}${decodedWarning.maxKt !== null ? ` MAX ${decodedWarning.maxKt}` : ""}:</b>
-            <p>${escapeHtml(wsLine)}</p>
-          </div>
-        </article>
-
-        <article class="item">
-          <span class="icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 14h-2v-2h2v2Zm0-4h-2V7h2v5Z"/></svg>
-          </span>
-          <div>
-            <b>FCST NC:</b>
-            <p>${decodedWarning.hasFcstNc ? "Sem mudanças significativas previstas durante o período de validade do aviso." : "Sem indicação FCST NC na mensagem."}</p>
-          </div>
-        </article>
-      </section>
-
-      <p class="note">NOTA: 1 NÓ (KT) = 1,852 km/h</p>
-    </main>
-    <script>
-      (function () {
-        const copyBtn = document.getElementById("copy-outlook");
-        const saveBtn = document.getElementById("save-html");
-        const status = document.getElementById("copy-status");
-        const content = document.querySelector(".sheet");
-        const body = document.getElementById("outlook-body");
-
-        function setStatus(message, error) {
-          if (!status) return;
-          status.textContent = message;
-          status.style.color = error ? "#ff9ea0" : "#8ad6ae";
-          setTimeout(function () {
-            status.textContent = "";
-          }, 3000);
-        }
-
-        async function copyForOutlook() {
-          if (!body) return;
-          const html = body.outerHTML;
-          const text = body.innerText || "";
-          try {
-            if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
-              const item = new ClipboardItem({
-                "text/html": new Blob([html], { type: "text/html" }),
-                "text/plain": new Blob([text], { type: "text/plain" })
-              });
-              await navigator.clipboard.write([item]);
-              setStatus("Conteúdo copiado em HTML para o Outlook.", false);
-              return;
-            }
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              await navigator.clipboard.writeText(text);
-              setStatus("Copiado como texto. Cole no Outlook.", false);
-              return;
-            }
-            setStatus("Área de transferência não suportada neste navegador.", true);
-          } catch (err) {
-            setStatus("Falha ao copiar para área de transferência.", true);
-          }
-        }
-
-        function saveFile() {
-          if (!content) return;
-          const fileHtml = "<!doctype html>" + document.documentElement.outerHTML;
-          const blob = new Blob([fileHtml], { type: "text/html;charset=utf-8" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "ad-wrng-outlook.html";
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setTimeout(function () { URL.revokeObjectURL(url); }, 8000);
-        }
-
-        copyBtn && copyBtn.addEventListener("click", copyForOutlook);
-        saveBtn && saveBtn.addEventListener("click", saveFile);
-      })();
-    </script>
-  </body>
-</html>`;
-
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const href = URL.createObjectURL(blob);
-    const preview = window.open(href, "_blank", "noopener,noreferrer");
-    if (!preview) {
-      window.alert("Pop-up bloqueado. O arquivo HTML sera baixado automaticamente.");
-    }
-    const anchor = document.createElement("a");
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    anchor.href = href;
-    anchor.download = `ad-wrng-${icao.toUpperCase()}-${stamp}.html`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(href), 10000);
+    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join("\r\n"))}`;
+    window.location.href = mailtoUrl;
   };
 
   const triggerAlarm = () => {
@@ -1855,32 +1448,6 @@ export default function Dashboard() {
                     <div className="bg-background/60 rounded-md p-3 sm:p-4 border-l-2 border-red-500/30 font-mono text-sm text-foreground/85 leading-relaxed whitespace-pre-wrap">
                       {aviso.mensagem}
                     </div>
-                    {warningIcaos.length > 0 && (
-                      <div className="bg-background/60 rounded-md p-3 sm:p-4 border-l-2 border-primary/30">
-                        <p className="text-xs font-bold font-mono uppercase tracking-wider text-primary mb-2">
-                          Aerodromes In Warning
-                        </p>
-                        {isFetchingAisweb && (
-                          <p className="text-sm text-muted-foreground font-mono">
-                            Loading AISWEB data...
-                          </p>
-                        )}
-                        {aiswebError && (
-                          <p className="text-sm text-red-300 font-mono">
-                            {aiswebError instanceof Error ? aiswebError.message : "Failed to load AISWEB data."}
-                          </p>
-                        )}
-                        {!isFetchingAisweb && !aiswebError && (
-                          <div className="space-y-1">
-                            {(aiswebData ?? []).map((ad) => (
-                              <p key={ad.code} className="text-sm text-foreground/90 font-mono break-words">
-                                {ad.code}: {ad.name} - {ad.city}/{ad.uf}
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1953,12 +1520,6 @@ export default function Dashboard() {
               )}
 
               <div className="w-full flex flex-col gap-3">
-                <Button
-                  onClick={stopAlarm}
-                  className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
-                >
-                  Acknowledge & Silence
-                </Button>
                 <Button
                   onClick={handleAcknowledgeSilenceEmail}
                   className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
