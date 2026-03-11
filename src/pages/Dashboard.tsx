@@ -829,9 +829,22 @@ export default function Dashboard() {
   </body>
 </html>`;
 
-    const subject = `AD WRNG ${warningNumber} - ${icao.toUpperCase()}`;
-    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(htmlBody)}`;
-    window.location.href = mailtoUrl;
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const fileName = `ad-wrng-${icao.toUpperCase()}-${stamp}.html`;
+    const blob = new Blob([htmlBody], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(url), 30000);
   };
 
   const triggerAlarm = () => {
