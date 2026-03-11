@@ -769,24 +769,25 @@ export default function Dashboard() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Relatório Dinâmico AD WRNG</title>
     <style>
-      body{margin:0;padding:0;background:#061328;color:#e6f0ff;font-family:'Segoe UI',Arial,sans-serif}
-      .bg{padding:24px;background:radial-gradient(circle at 14% 18%, rgba(41,135,178,.20), transparent 28%),radial-gradient(circle at 88% 78%, rgba(30,100,186,.20), transparent 28%),linear-gradient(90deg,#061328 0%,#061a35 50%,#061328 100%)}
-      .wrap{max-width:1020px;margin:0 auto;background:linear-gradient(180deg,#0f2545 0%,#0b1c35 100%);border:1px solid #26568f;border-radius:18px;padding:16px}
+      html,body{width:100%;height:100%}
+      body{margin:0;padding:0;background:#040d1f;color:#e6f0ff;font-family:Inter,Segoe UI,Roboto,system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.4}
+      .bg{width:100%;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:clamp(12px,2.2vw,28px);background:radial-gradient(circle at 14% 18%, rgba(41,135,178,.20), transparent 28%),radial-gradient(circle at 88% 78%, rgba(30,100,186,.20), transparent 28%),linear-gradient(90deg,#061328 0%,#061a35 50%,#061328 100%)}
+      .wrap{width:min(96vw,1680px);max-height:calc(100vh - clamp(24px,4vw,56px));overflow:auto;background:linear-gradient(180deg,#0f2545 0%,#0b1c35 100%);border:1px solid #26568f;border-radius:18px;padding:clamp(14px,1.8vw,24px);box-shadow:0 24px 70px rgba(4,12,24,.45)}
       .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-      .pill{display:inline-block;padding:8px 14px;border:1px solid #2f679e;border-radius:999px;background:#0e2a4d;color:#d8e9ff;font-size:13px;font-weight:700}
-      .title{margin:14px 0 12px;font-size:44px;font-weight:800;letter-spacing:.2px;color:#eaf3ff}
+      .pill{display:inline-block;padding:8px 14px;border:1px solid #2f679e;border-radius:999px;background:#0e2a4d;color:#d8e9ff;font-size:13px;font-weight:700;letter-spacing:.04em}
+      .title{margin:14px 0 12px;font-size:clamp(26px,2.5vw,44px);font-weight:800;letter-spacing:.02em;color:#eaf3ff;font-family:Orbitron,Inter,Segoe UI,Roboto,sans-serif;text-wrap:balance}
       .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
       .card{border:1px solid #2a6299;border-radius:12px;padding:14px;background:rgba(8,28,54,.72);min-height:74px}
-      .card .label{display:block;color:#9cc3e8;font-size:13px;font-weight:700;text-transform:uppercase;margin-bottom:7px}
-      .card .value{color:#f2f7ff;font-size:26px;font-weight:800;line-height:1.25}
-      .lead{margin:14px 0 10px;color:#bfd4ee;font-size:18px}
-      .section{margin:10px 0 6px;font-size:22px;font-weight:800;color:#e6f0ff}
-      ul{margin:0 0 12px 22px;padding:0;font-size:17px;line-height:1.45;color:#d6e4f7}
+      .card .label{display:block;color:#9cc3e8;font-size:13px;font-weight:700;text-transform:uppercase;margin-bottom:7px;letter-spacing:.06em}
+      .card .value{color:#f2f7ff;font-size:clamp(18px,1.55vw,28px);font-weight:800;line-height:1.25}
+      .lead{margin:14px 0 10px;color:#bfd4ee;font-size:clamp(15px,1.2vw,19px)}
+      .section{margin:10px 0 6px;font-size:clamp(18px,1.45vw,24px);font-weight:800;color:#e6f0ff}
+      ul{margin:0 0 12px 22px;padding:0;font-size:clamp(14px,1.05vw,18px);line-height:1.45;color:#d6e4f7}
       .item{margin-top:10px;border:1px solid #2a6299;border-radius:12px;padding:12px 14px;background:rgba(11,31,58,.65)}
-      .item b{font-size:29px;color:#f1f6ff}
-      .item p{margin:6px 0 0;font-size:17px;color:#c9dcf4;line-height:1.45}
-      .note{margin-top:12px;border:1px solid #7b2f45;border-radius:12px;background:rgba(66,18,32,.45);padding:10px 14px;font-size:17px;font-weight:800;color:#ffd6dc}
-      @media (max-width:780px){.cards{grid-template-columns:1fr}.title{font-size:34px}.item b{font-size:23px}}
+      .item b{font-size:clamp(18px,1.8vw,30px);color:#f1f6ff;font-family:Orbitron,Inter,Segoe UI,sans-serif}
+      .item p{margin:6px 0 0;font-size:clamp(14px,1.02vw,18px);color:#c9dcf4;line-height:1.45}
+      .note{margin-top:12px;border:1px solid #7b2f45;border-radius:12px;background:rgba(66,18,32,.45);padding:10px 14px;font-size:clamp(14px,1.06vw,18px);font-weight:800;color:#ffd6dc;letter-spacing:.03em}
+      @media (max-width:900px){.bg{align-items:flex-start}.wrap{max-height:none}.cards{grid-template-columns:1fr}}
     </style>
   </head>
   <body>
