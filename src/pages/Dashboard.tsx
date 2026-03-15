@@ -1270,14 +1270,6 @@ export default function Dashboard() {
                   Delayed
                 </Badge>
               )}
-              {ruleConfig && (
-                <Badge
-                  variant="outline"
-                  className={`${ruleConfig.bg} ${ruleConfig.text} border ${ruleConfig.border} text-xs font-bold font-mono px-2.5`}
-                >
-                  {ruleConfig.label}
-                </Badge>
-              )}
             </div>
           </div>
           <div className="p-3 sm:p-4 relative">
