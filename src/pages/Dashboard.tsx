@@ -330,12 +330,12 @@ export default function Dashboard() {
     summary: HistorySummary;
     capturedAt: string;
   } | null>(null);
+  const [historyReloading, setHistoryReloading] = useState(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const alarmTimeoutRef = useRef<number | null>(null);
   const showAlarmRef = useRef(false);
   const lastMsgHashRef = useRef("");
-  const wasHistoryViewRef = useRef(false);
 
   const {
     data: statusData,
@@ -445,6 +445,7 @@ export default function Dashboard() {
     data: metarHistoryData,
     isFetching: isFetchingMetarHistory,
     error: metarHistoryError,
+    refetch: refetchMetarHistory,
   } = useQuery({
     queryKey: ["metar-history-24h", icao],
     queryFn: async () => {
@@ -454,14 +455,15 @@ export default function Dashboard() {
     },
     enabled: /^[A-Z]{4}$/.test(icao),
     staleTime: 30 * 1000,
-    refetchInterval: 30 * 1000,
-    refetchIntervalInBackground: true,
+    refetchInterval: isHistoryView ? false : 30 * 1000,
+    refetchIntervalInBackground: !isHistoryView,
   });
 
   const {
     data: synopHistoryData,
     isFetching: isFetchingSynopHistory,
     error: synopHistoryError,
+    refetch: refetchSynopHistory,
   } = useQuery({
     queryKey: ["synop-history-24h", icao],
     queryFn: async () => {
@@ -471,8 +473,8 @@ export default function Dashboard() {
     },
     enabled: /^[A-Z]{4}$/.test(icao),
     staleTime: 30 * 1000,
-    refetchInterval: 30 * 1000,
-    refetchIntervalInBackground: true,
+    refetchInterval: isHistoryView ? false : 30 * 1000,
+    refetchIntervalInBackground: !isHistoryView,
   });
 
   const historySlots = useMemo(() => getLast24HourSlots(utcNow), [utcNow]);
@@ -645,10 +647,6 @@ export default function Dashboard() {
     };
   }, [metarHourlyRows, synopHourlyRows]);
 
-  const isHistoryView =
-    location.pathname === "/" &&
-    new URLSearchParams(location.search).get("view") === "history";
-
   const gapDetails = useMemo(() => {
     const metarGaps = metarHourlyRows
       .filter((row) => row.isMissing)
@@ -672,7 +670,9 @@ export default function Dashboard() {
   };
   const historyViewHasGaps = historyViewSummary.missingCount > 0;
 
-  const refreshHistorySnapshot = () => {
+  const refreshHistorySnapshot = async () => {
+    setHistoryReloading(true);
+    await Promise.all([refetchMetarHistory(), refetchSynopHistory()]);
     const capturedAt = formatUtcDateTime(new Date());
     setHistorySnapshot({
       metarRows: [...metarHourlyRows],
@@ -680,6 +680,7 @@ export default function Dashboard() {
       summary: { ...historySummary },
       capturedAt,
     });
+    setHistoryReloading(false);
   };
 
 
@@ -953,14 +954,6 @@ export default function Dashboard() {
     setHistorySnapshot(null);
     setShowGapDetails(false);
   }, [icao]);
-
-
-  useEffect(() => {
-    if (isHistoryView && !wasHistoryViewRef.current) {
-      refreshHistorySnapshot();
-    }
-    wasHistoryViewRef.current = isHistoryView;
-  }, [isHistoryView]);
 
   useEffect(() => {
     const topMessage = list.length > 0 ? list[0].mensagem : "";
@@ -1344,10 +1337,11 @@ export default function Dashboard() {
                 type="button"
                 size="sm"
                 onClick={refreshHistorySnapshot}
-                className="h-7 px-2.5 text-[11px] font-mono uppercase tracking-wider border bg-primary/15 text-primary border-primary/35"
+                disabled={historyReloading}
+                className="h-7 px-2.5 text-[11px] font-mono uppercase tracking-wider border bg-primary/15 text-primary border-primary/35 disabled:opacity-60"
               >
-                <RefreshCw className="w-3 h-3 mr-1" />
-                Update History
+                <RefreshCw className={`w-3 h-3 mr-1 ${historyReloading ? "animate-spin" : ""}`} />
+                History Reload
               </Button>
               <span
                 className={`text-xs font-mono uppercase tracking-wider ${
@@ -1362,7 +1356,7 @@ export default function Dashboard() {
           {!hasHistorySnapshot && (
             <div className="rounded-md border border-border/60 bg-muted/20 p-3">
               <p className="text-xs sm:text-sm font-mono text-muted-foreground">
-                Frozen History data has not been loaded yet. Click <b>Update History</b> to fetch and lock a new snapshot.
+                Frozen History data has not been loaded yet. Click <b>History Reload</b> to fetch and lock a new snapshot.
               </p>
             </div>
           )}
@@ -1445,7 +1439,7 @@ export default function Dashboard() {
                     {!hasHistorySnapshot && (
                       <tr>
                         <td colSpan={3} className="px-2 py-3 text-muted-foreground">
-                          Click Update History to display frozen data.
+                          Click History Reload to display frozen data.
                         </td>
                       </tr>
                     )}
@@ -1508,7 +1502,7 @@ export default function Dashboard() {
                     {!hasHistorySnapshot && (
                       <tr>
                         <td colSpan={2} className="px-2 py-3 text-muted-foreground">
-                          Click Update History to display frozen data.
+                          Click History Reload to display frozen data.
                         </td>
                       </tr>
                     )}
