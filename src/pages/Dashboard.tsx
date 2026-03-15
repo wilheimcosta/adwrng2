@@ -324,19 +324,17 @@ export default function Dashboard() {
   const [showAlarmOverlay, setShowAlarmOverlay] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [showGapDetails, setShowGapDetails] = useState(false);
-  const [historyBaseUtc, setHistoryBaseUtc] = useState(() => new Date());
   const [historySnapshot, setHistorySnapshot] = useState<{
     metarRows: MetarRow[];
     synopRows: SynopRow[];
     summary: HistorySummary;
+    capturedAt: string;
   } | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const alarmTimeoutRef = useRef<number | null>(null);
   const showAlarmRef = useRef(false);
   const lastMsgHashRef = useRef("");
-  const lastAppliedMetarUpdateRef = useRef(0);
-  const lastAppliedSynopUpdateRef = useRef(0);
 
   const {
     data: statusData,
@@ -446,7 +444,6 @@ export default function Dashboard() {
     data: metarHistoryData,
     isFetching: isFetchingMetarHistory,
     error: metarHistoryError,
-    dataUpdatedAt: metarHistoryUpdatedAt,
   } = useQuery({
     queryKey: ["metar-history-24h", icao],
     queryFn: async () => {
@@ -464,7 +461,6 @@ export default function Dashboard() {
     data: synopHistoryData,
     isFetching: isFetchingSynopHistory,
     error: synopHistoryError,
-    dataUpdatedAt: synopHistoryUpdatedAt,
   } = useQuery({
     queryKey: ["synop-history-24h", icao],
     queryFn: async () => {
@@ -478,8 +474,8 @@ export default function Dashboard() {
     refetchIntervalInBackground: true,
   });
 
-  const historySlots = useMemo(() => getLast24HourSlots(historyBaseUtc), [historyBaseUtc]);
-  const synopSlots = useMemo(() => getSynop24hPublicationSlots(historyBaseUtc), [historyBaseUtc]);
+  const historySlots = useMemo(() => getLast24HourSlots(utcNow), [utcNow]);
+  const synopSlots = useMemo(() => getSynop24hPublicationSlots(utcNow), [utcNow]);
 
   const metarHourlyRows = useMemo(() => {
     type MetarRow = {
@@ -662,10 +658,28 @@ export default function Dashboard() {
     return [...metarGaps, ...synopGaps];
   }, [metarHourlyRows, synopHourlyRows]);
 
-  const historyViewMetarRows = historySnapshot?.metarRows ?? metarHourlyRows;
-  const historyViewSynopRows = historySnapshot?.synopRows ?? synopHourlyRows;
-  const historyViewSummary = historySnapshot?.summary ?? historySummary;
+  const hasHistorySnapshot = Boolean(historySnapshot);
+  const historyViewMetarRows = historySnapshot?.metarRows ?? [];
+  const historyViewSynopRows = historySnapshot?.synopRows ?? [];
+  const historyViewSummary = historySnapshot?.summary ?? {
+    metarCount: 0,
+    speciCount: 0,
+    synopCount: 0,
+    missingCount: 0,
+    delayedCount: 0,
+    earlyCount: 0,
+  };
   const historyViewHasGaps = historyViewSummary.missingCount > 0;
+
+  const refreshHistorySnapshot = () => {
+    const capturedAt = formatUtcDateTime(new Date());
+    setHistorySnapshot({
+      metarRows: [...metarHourlyRows],
+      synopRows: [...synopHourlyRows],
+      summary: { ...historySummary },
+      capturedAt,
+    });
+  };
 
 
   const decodedWarning = useMemo(() => {
@@ -935,32 +949,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     setNextCheck(CHECK_INTERVAL_SECONDS);
+    setHistorySnapshot(null);
+    setShowGapDetails(false);
   }, [icao]);
 
-  useEffect(() => {
-    if (!metarHistoryUpdatedAt || !synopHistoryUpdatedAt) return;
-
-    const metarChanged = metarHistoryUpdatedAt > lastAppliedMetarUpdateRef.current;
-    const synopChanged = synopHistoryUpdatedAt > lastAppliedSynopUpdateRef.current;
-    if (!metarChanged || !synopChanged) return;
-
-    const base = new Date(Math.max(metarHistoryUpdatedAt, synopHistoryUpdatedAt));
-    setHistoryBaseUtc(base);
-    setHistorySnapshot({
-      metarRows: metarHourlyRows,
-      synopRows: synopHourlyRows,
-      summary: historySummary,
-    });
-
-    lastAppliedMetarUpdateRef.current = metarHistoryUpdatedAt;
-    lastAppliedSynopUpdateRef.current = synopHistoryUpdatedAt;
-  }, [
-    metarHistoryUpdatedAt,
-    synopHistoryUpdatedAt,
-    metarHourlyRows,
-    synopHourlyRows,
-    historySummary,
-  ]);
 
   useEffect(() => {
     const topMessage = list.length > 0 ? list[0].mensagem : "";
@@ -1330,18 +1322,42 @@ export default function Dashboard() {
 
       {isHistoryView && (
         <div className="card-neon p-3 sm:p-4 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <h3 className="text-sm sm:text-base font-bold font-mono uppercase tracking-wide text-foreground">
               History :: Last 24h
             </h3>
-            <span
-              className={`text-xs font-mono uppercase tracking-wider ${
-                historyViewHasGaps ? "text-red-300" : "text-emerald-300"
-              }`}
-            >
-              {historyViewHasGaps ? "Gaps Detected" : "No Gaps"}
-            </span>
+            <div className="flex items-center gap-2">
+              {historySnapshot?.capturedAt && (
+                <span className="text-[10px] sm:text-xs font-mono text-muted-foreground">
+                  Snapshot: {historySnapshot.capturedAt}
+                </span>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                onClick={refreshHistorySnapshot}
+                className="h-7 px-2.5 text-[11px] font-mono uppercase tracking-wider border bg-primary/15 text-primary border-primary/35"
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Atualizar History
+              </Button>
+              <span
+                className={`text-xs font-mono uppercase tracking-wider ${
+                  historyViewHasGaps ? "text-red-300" : "text-emerald-300"
+                }`}
+              >
+                {historyViewHasGaps ? "Gaps Detected" : "No Gaps"}
+              </span>
+            </div>
           </div>
+
+          {!hasHistorySnapshot && (
+            <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+              <p className="text-xs sm:text-sm font-mono text-muted-foreground">
+                Dados congelados do History ainda não carregados. Clique em <b>Atualizar History</b> para buscar e fixar um novo snapshot.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="font-mono text-xs">
@@ -1402,7 +1418,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {isFetchingMetarHistory && (
+                    {hasHistorySnapshot && isFetchingMetarHistory && (
                       <tr>
                         <td colSpan={3} className="px-2 py-3 text-muted-foreground">
                           Loading METAR history...
@@ -1418,7 +1434,14 @@ export default function Dashboard() {
                         </td>
                       </tr>
                     )}
-                    {!isFetchingMetarHistory &&
+                    {!hasHistorySnapshot && (
+                      <tr>
+                        <td colSpan={3} className="px-2 py-3 text-muted-foreground">
+                          Clique em Atualizar History para exibir os dados congelados.
+                        </td>
+                      </tr>
+                    )}
+                    {hasHistorySnapshot && !isFetchingMetarHistory &&
                       !metarHistoryError &&
                       historyViewMetarRows.map((row, idx) => (
                         <tr key={`metar-${idx}`} className="border-b border-border/40 align-top">
@@ -1458,7 +1481,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {isFetchingSynopHistory && (
+                    {hasHistorySnapshot && isFetchingSynopHistory && (
                       <tr>
                         <td colSpan={2} className="px-2 py-3 text-muted-foreground">
                           Loading SYNOP history...
@@ -1474,7 +1497,14 @@ export default function Dashboard() {
                         </td>
                       </tr>
                     )}
-                    {!isFetchingSynopHistory &&
+                    {!hasHistorySnapshot && (
+                      <tr>
+                        <td colSpan={2} className="px-2 py-3 text-muted-foreground">
+                          Clique em Atualizar History para exibir os dados congelados.
+                        </td>
+                      </tr>
+                    )}
+                    {hasHistorySnapshot && !isFetchingSynopHistory &&
                       !synopHistoryError &&
                       historyViewSynopRows.map((row, idx) => (
                         <tr key={`synop-${idx}`} className="border-b border-border/40 align-top">
