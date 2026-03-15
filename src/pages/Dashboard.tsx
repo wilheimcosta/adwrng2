@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChevronDown,
-  ChevronUp,
   AlertTriangle,
   BellRing,
   CheckCircle2,
   Clock,
-  History,
   Plane,
   RefreshCw,
   Shield,
@@ -19,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useIcao } from "@/contexts/icao-context";
+import { useLocation } from "react-router-dom";
 import {
   extractIcaosFromAdWarning,
   fetchAerodromeStatusDetails,
@@ -35,6 +33,22 @@ const CIRCLE_RADIUS = 18;
 const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
 type DashboardWarning = { mensagem: string };
+
+type SynopRow = {
+  hour: string;
+  isMissing: boolean;
+  message: string;
+  className: string;
+};
+
+type HistorySummary = {
+  metarCount: number;
+  speciCount: number;
+  synopCount: number;
+  missingCount: number;
+  delayedCount: number;
+  earlyCount: number;
+};
 
 function formatUtcClock(date: Date): string {
   const h = date.getUTCHours().toString().padStart(2, "0");
@@ -303,17 +317,26 @@ function metarTransmissionStatus(item: MetarHistoryItem): {
 
 export default function Dashboard() {
   const { icao } = useIcao();
+  const location = useLocation();
   const [utcNow, setUtcNow] = useState(() => new Date());
   const [nextCheck, setNextCheck] = useState(CHECK_INTERVAL_SECONDS);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [showAlarmOverlay, setShowAlarmOverlay] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
-  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+  const [showGapDetails, setShowGapDetails] = useState(false);
+  const [historyBaseUtc, setHistoryBaseUtc] = useState(() => new Date());
+  const [historySnapshot, setHistorySnapshot] = useState<{
+    metarRows: MetarRow[];
+    synopRows: SynopRow[];
+    summary: HistorySummary;
+  } | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const alarmTimeoutRef = useRef<number | null>(null);
   const showAlarmRef = useRef(false);
   const lastMsgHashRef = useRef("");
+  const lastAppliedMetarUpdateRef = useRef(0);
+  const lastAppliedSynopUpdateRef = useRef(0);
 
   const {
     data: statusData,
@@ -423,6 +446,7 @@ export default function Dashboard() {
     data: metarHistoryData,
     isFetching: isFetchingMetarHistory,
     error: metarHistoryError,
+    dataUpdatedAt: metarHistoryUpdatedAt,
   } = useQuery({
     queryKey: ["metar-history-24h", icao],
     queryFn: async () => {
@@ -440,6 +464,7 @@ export default function Dashboard() {
     data: synopHistoryData,
     isFetching: isFetchingSynopHistory,
     error: synopHistoryError,
+    dataUpdatedAt: synopHistoryUpdatedAt,
   } = useQuery({
     queryKey: ["synop-history-24h", icao],
     queryFn: async () => {
@@ -453,8 +478,8 @@ export default function Dashboard() {
     refetchIntervalInBackground: true,
   });
 
-  const historySlots = useMemo(() => getLast24HourSlots(utcNow), [utcNow]);
-  const synopSlots = useMemo(() => getSynop24hPublicationSlots(utcNow), [utcNow]);
+  const historySlots = useMemo(() => getLast24HourSlots(historyBaseUtc), [historyBaseUtc]);
+  const synopSlots = useMemo(() => getSynop24hPublicationSlots(historyBaseUtc), [historyBaseUtc]);
 
   const metarHourlyRows = useMemo(() => {
     type MetarRow = {
@@ -622,6 +647,26 @@ export default function Dashboard() {
       earlyCount,
     };
   }, [metarHourlyRows, synopHourlyRows]);
+
+  const isHistoryView =
+    location.pathname === "/" &&
+    new URLSearchParams(location.search).get("view") === "history";
+
+  const gapDetails = useMemo(() => {
+    const metarGaps = metarHourlyRows
+      .filter((row) => row.isMissing)
+      .map((row) => ({ source: "METAR", hour: row.hour, message: row.message }));
+    const synopGaps = synopHourlyRows
+      .filter((row) => row.isMissing)
+      .map((row) => ({ source: "SYNOP", hour: row.hour, message: row.message }));
+    return [...metarGaps, ...synopGaps];
+  }, [metarHourlyRows, synopHourlyRows]);
+
+  const historyViewMetarRows = historySnapshot?.metarRows ?? metarHourlyRows;
+  const historyViewSynopRows = historySnapshot?.synopRows ?? synopHourlyRows;
+  const historyViewSummary = historySnapshot?.summary ?? historySummary;
+  const historyViewHasGaps = historyViewSummary.missingCount > 0;
+
 
   const decodedWarning = useMemo(() => {
     const warningText = (statusData?.warningText ?? "").trim();
@@ -891,6 +936,31 @@ export default function Dashboard() {
   useEffect(() => {
     setNextCheck(CHECK_INTERVAL_SECONDS);
   }, [icao]);
+
+  useEffect(() => {
+    if (!metarHistoryUpdatedAt || !synopHistoryUpdatedAt) return;
+
+    const metarChanged = metarHistoryUpdatedAt > lastAppliedMetarUpdateRef.current;
+    const synopChanged = synopHistoryUpdatedAt > lastAppliedSynopUpdateRef.current;
+    if (!metarChanged || !synopChanged) return;
+
+    const base = new Date(Math.max(metarHistoryUpdatedAt, synopHistoryUpdatedAt));
+    setHistoryBaseUtc(base);
+    setHistorySnapshot({
+      metarRows: metarHourlyRows,
+      synopRows: synopHourlyRows,
+      summary: historySummary,
+    });
+
+    lastAppliedMetarUpdateRef.current = metarHistoryUpdatedAt;
+    lastAppliedSynopUpdateRef.current = synopHistoryUpdatedAt;
+  }, [
+    metarHistoryUpdatedAt,
+    synopHistoryUpdatedAt,
+    metarHourlyRows,
+    synopHourlyRows,
+    historySummary,
+  ]);
 
   useEffect(() => {
     const topMessage = list.length > 0 ? list[0].mensagem : "";
@@ -1166,6 +1236,8 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {!isHistoryView && (
+        <>
       {/* ── METAR / TAF panels ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* METAR */}
@@ -1181,20 +1253,14 @@ export default function Dashboard() {
               <Button
                 type="button"
                 size="sm"
-                onClick={() => setShowHistoryPanel((prev) => !prev)}
+                onClick={() => setShowGapDetails((prev) => !prev)}
                 className={`h-7 px-2.5 text-[11px] font-mono uppercase tracking-wider border ${
                   hasHistoryGaps
                     ? "bg-red-500/15 text-red-300 border-red-500/45 animate-pulse"
-                    : "bg-emerald-500/12 text-emerald-300 border-emerald-500/35"
+                    : "bg-muted text-muted-foreground border-border/60"
                 }`}
               >
-                <History className="w-3 h-3 mr-1" />
-                History
-                {showHistoryPanel ? (
-                  <ChevronUp className="w-3 h-3 ml-1" />
-                ) : (
-                  <ChevronDown className="w-3 h-3 ml-1" />
-                )}
+                GAP
               </Button>
               {isMetarDelayed && (
                 <Badge
@@ -1222,6 +1288,27 @@ export default function Dashboard() {
             <p className="text-sm md:text-base text-foreground/85 font-mono leading-relaxed whitespace-pre-wrap break-normal text-justify relative">
               {reportLine}
             </p>
+
+            {showGapDetails && (
+              <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/5 p-3 space-y-2">
+                <p className="text-xs font-mono uppercase tracking-wider text-red-300 font-bold">
+                  Missing messages in last 24h
+                </p>
+                {gapDetails.length > 0 ? (
+                  <ul className="space-y-1 text-xs sm:text-sm font-mono text-red-200">
+                    {gapDetails.map((gap, idx) => (
+                      <li key={`${gap.source}-${gap.hour}-${idx}`}>
+                        {gap.source} · {gap.hour} · {gap.message}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs sm:text-sm font-mono text-emerald-300">
+                    No missing METAR/SYNOP messages in the last 24h.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1246,7 +1333,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {showHistoryPanel && (
+        </>
+      )}
+
+      {isHistoryView && (
         <div className="card-neon p-3 sm:p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm sm:text-base font-bold font-mono uppercase tracking-wide text-foreground">
@@ -1254,52 +1344,52 @@ export default function Dashboard() {
             </h3>
             <span
               className={`text-xs font-mono uppercase tracking-wider ${
-                hasHistoryGaps ? "text-red-300" : "text-emerald-300"
+                historyViewHasGaps ? "text-red-300" : "text-emerald-300"
               }`}
             >
-              {hasHistoryGaps ? "Gaps Detected" : "No Gaps"}
+              {historyViewHasGaps ? "Gaps Detected" : "No Gaps"}
             </span>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="font-mono text-xs">
-              METAR: {historySummary.metarCount}
+              METAR: {historyViewSummary.metarCount}
             </Badge>
             <Badge variant="outline" className="font-mono text-xs">
-              SPECI: {historySummary.speciCount}
+              SPECI: {historyViewSummary.speciCount}
             </Badge>
             <Badge variant="outline" className="font-mono text-xs">
-              SYNOP: {historySummary.synopCount}
+              SYNOP: {historyViewSummary.synopCount}
             </Badge>
             <Badge
               variant="outline"
               className={`font-mono text-xs ${
-                historySummary.missingCount > 0
+                historyViewSummary.missingCount > 0
                   ? "bg-red-500/20 text-red-200 border-red-500/60"
                   : "text-emerald-300 border-emerald-500/35"
               }`}
             >
-              Missing: {historySummary.missingCount}
+              Missing: {historyViewSummary.missingCount}
             </Badge>
             <Badge
               variant="outline"
               className={`font-mono text-xs ${
-                historySummary.delayedCount > 0
+                historyViewSummary.delayedCount > 0
                   ? "bg-red-500/20 text-red-200 border-red-500/60"
                   : "text-muted-foreground"
               }`}
             >
-              Delayed: {historySummary.delayedCount}
+              Delayed: {historyViewSummary.delayedCount}
             </Badge>
             <Badge
               variant="outline"
               className={`font-mono text-xs ${
-                historySummary.earlyCount > 0
+                historyViewSummary.earlyCount > 0
                   ? "text-amber-300 border-amber-500/40"
                   : "text-muted-foreground"
               }`}
             >
-              Early: {historySummary.earlyCount}
+              Early: {historyViewSummary.earlyCount}
             </Badge>
           </div>
 
@@ -1338,7 +1428,7 @@ export default function Dashboard() {
                     )}
                     {!isFetchingMetarHistory &&
                       !metarHistoryError &&
-                      metarHourlyRows.map((row, idx) => (
+                      historyViewMetarRows.map((row, idx) => (
                         <tr key={`metar-${idx}`} className="border-b border-border/40 align-top">
                           <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
                             {row.hour}
@@ -1394,7 +1484,7 @@ export default function Dashboard() {
                     )}
                     {!isFetchingSynopHistory &&
                       !synopHistoryError &&
-                      synopHourlyRows.map((row, idx) => (
+                      historyViewSynopRows.map((row, idx) => (
                         <tr key={`synop-${idx}`} className="border-b border-border/40 align-top">
                           <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
                             {row.hour}
@@ -1414,6 +1504,8 @@ export default function Dashboard() {
         </div>
       )}
 
+      {!isHistoryView && (
+        <>
       {/* ── Warning / Status Area ── */}
       <div className="relative min-h-[200px]">
         {/* Loading overlay */}
@@ -1533,6 +1625,9 @@ export default function Dashboard() {
           {"Data Source :: REDEMET / AISWEB API"}
         </span>
       </footer>
+
+        </>
+      )}
 
       {/* ── Alarm Overlay ── */}
       {showAlarmOverlay && (
