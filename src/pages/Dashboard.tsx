@@ -332,6 +332,10 @@ export default function Dashboard() {
   } | null>(null);
   const [historyReloading, setHistoryReloading] = useState(false);
 
+  const isHistoryView =
+    location.pathname === "/" &&
+    new URLSearchParams(location.search).get("view") === "history";
+
   const audioCtxRef = useRef<AudioContext | null>(null);
   const alarmTimeoutRef = useRef<number | null>(null);
   const showAlarmRef = useRef(false);
