@@ -802,13 +802,13 @@ export default function Dashboard() {
   const handleAcknowledgeSilenceEmail = () => {
     stopAlarm();
 
-    const fallbackWarning = (statusData?.warningText ?? list[0]?.mensagem ?? "No warning message available.").trim();
+    const fallbackWarning = (statusData?.warningText ?? list[0]?.mensagem ?? "Sem mensagem de aviso disponível.").trim();
     const warningText = decodedWarning.warningText || fallbackWarning;
 
     const wsLine =
       decodedWarning.wspdKt !== null
         ? `Previsão de velocidade do vento na superfície de ${decodedWarning.wspdKt} nós (~${ktToKmH(decodedWarning.wspdKt).toFixed(2)} km/h), com rajadas máximas de ${decodedWarning.maxKt ?? decodedWarning.wspdKt} nós (~${ktToKmH(decodedWarning.maxKt ?? decodedWarning.wspdKt).toFixed(2)} km/h).`
-        : "No wind speed information available.";
+        : "Sem informação de velocidade do vento.";
 
     const rawValidity =
       decodedWarning.startsAt && decodedWarning.endsAt
@@ -862,7 +862,7 @@ export default function Dashboard() {
           <span class="pill">🟢 Relatório Dinâmico AD WRNG</span>
         </div>
 
-        <h1 class="title">AERODROME WARNING NO. ${escapeHtml(warningNumber)} - ${escapeHtml(issuedLabel)}</h1>
+        <h1 class="title">AVISO DE AERÓDROMO Nº ${escapeHtml(warningNumber)} - ${escapeHtml(issuedLabel)}</h1>
 
         <div class="cards">
           <div class="card">
@@ -879,17 +879,17 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <p class="lead">Below is the detailed decoding for awareness and action.</p>
-        <h2 class="section">Applicable Aerodromes:</h2>
+        <p class="lead">Segue abaixo a decodificação detalhada para conhecimento e providências.</p>
+        <h2 class="section">Aeródromos Aplicáveis:</h2>
         <ul>${aerodromeList}</ul>
 
-        <div class="item"><b>🔺 AD WRNG ${escapeHtml(warningNumber)}:</b><p>This is aerodrome warning number ${escapeHtml(warningNumber)} issued by CIMAER - Integrated Aeronautical Meteorology Center.</p></div>
-        <div class="item"><b>🕘 VALID ${escapeHtml(rawValidity)}:</b><p>The warning is valid from ${escapeHtml(startsAtLabel)} to ${escapeHtml(endsAtLabel)}.</p></div>
-        <div class="item"><b>🌩️ TS (Thunderstorms):</b><p>${decodedWarning.hasTs ? "Thunderstorms are forecast for the referenced aerodromes." : "There is no thunderstorm indication in the message."}</p></div>
+        <div class="item"><b>🔺 AD WRNG ${escapeHtml(warningNumber)}:</b><p>Este é o aviso de aeródromo número ${escapeHtml(warningNumber)} emitido pelo CIMAER - Centro Integrado de Meteorologia Aeronáutica.</p></div>
+        <div class="item"><b>🕘 VALID ${escapeHtml(rawValidity)}:</b><p>O aviso é válido de ${escapeHtml(startsAtLabel)} até ${escapeHtml(endsAtLabel)}.</p></div>
+        <div class="item"><b>🌩️ TS (Trovoadas):</b><p>${decodedWarning.hasTs ? "Há previsão de trovoadas nos aeródromos mencionados." : "Não há indicação de trovoadas na mensagem."}</p></div>
         <div class="item"><b>💨 ${escapeHtml(decodedWarning.hasSfc ? "SFC " : "")}WSPD ${decodedWarning.wspdKt ?? "N/D"}KT MAX ${decodedWarning.maxKt ?? "N/D"}:</b><p>${escapeHtml(wsLine)}</p></div>
-        <div class="item"><b>🧭 FCST NC:</b><p>${decodedWarning.hasFcstNc ? "No significant changes are forecast during the warning validity period." : "No FCST NC indication in the message."}</p></div>
+        <div class="item"><b>🧭 FCST NC:</b><p>${decodedWarning.hasFcstNc ? "Sem mudanças significativas previstas durante o período de validade do aviso." : "Sem indicação FCST NC na mensagem."}</p></div>
 
-        <div class="note">NOTE: 1 KNOT (KT) = 1.852 km/h</div>
+        <div class="note">NOTA: 1 NÓ (KT) = 1,852 km/h</div>
       </div>
     </div>
   </body>
