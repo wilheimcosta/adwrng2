@@ -874,7 +874,7 @@ export default function Dashboard() {
             <div class="value">${escapeHtml(endsAtLabel)}</div>
           </div>
           <div class="card">
-            <span class="label">✉ Message</span>
+            <span class="label">✉ Mensagem</span>
             <div class="value">${escapeHtml(warningText)}</div>
           </div>
         </div>
