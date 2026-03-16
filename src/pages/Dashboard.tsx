@@ -1360,7 +1360,7 @@ export default function Dashboard() {
           {!hasHistorySnapshot && (
             <div className="rounded-md border border-border/60 bg-muted/20 p-3">
               <p className="text-xs sm:text-sm font-mono text-muted-foreground">
-                Frozen History data has not been loaded yet. Click <b>History Reload</b> to fetch and lock a new snapshot.
+                Click History Reload to update data.
               </p>
             </div>
           )}
@@ -1443,7 +1443,7 @@ export default function Dashboard() {
                     {!hasHistorySnapshot && (
                       <tr>
                         <td colSpan={3} className="px-2 py-3 text-muted-foreground">
-                          Click History Reload to display frozen data.
+                          Click History Reload to update data.
                         </td>
                       </tr>
                     )}
@@ -1506,7 +1506,7 @@ export default function Dashboard() {
                     {!hasHistorySnapshot && (
                       <tr>
                         <td colSpan={2} className="px-2 py-3 text-muted-foreground">
-                          Click History Reload to display frozen data.
+                          Click History Reload to update data.
                         </td>
                       </tr>
                     )}
