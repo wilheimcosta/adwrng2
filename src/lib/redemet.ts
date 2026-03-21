@@ -281,12 +281,18 @@ function extractAdWarning(reportText: string): { hasAdWarning: boolean; warningT
   return { hasAdWarning: false, warningText: null };
 }
 
-function formatRedemetUtcHour(date: Date): string {
-  const yyyy = String(date.getUTCFullYear());
-  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(date.getUTCDate()).padStart(2, "0");
-  const hh = String(date.getUTCHours()).padStart(2, "0");
-  return `${yyyy}${mm}${dd}${hh}`;
+function resolveUtcDate(day: number, hour: number, minute: number, reference: Date): Date {
+  const year = reference.getUTCFullYear();
+  const month = reference.getUTCMonth();
+  const candidateOffsets = [-1, 0, 1].map((monthOffset) =>
+    new Date(Date.UTC(year, month + monthOffset, day, hour, minute, 0, 0)),
+  );
+
+  return candidateOffsets.reduce((closest, candidate) => {
+    const closestDistance = Math.abs(closest.getTime() - reference.getTime());
+    const candidateDistance = Math.abs(candidate.getTime() - reference.getTime());
+    return candidateDistance < closestDistance ? candidate : closest;
+  });
 }
 
 function extractAlertRows(payload: unknown): RedemetAlert[] {
@@ -412,17 +418,13 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
     const flag = Array.isArray(row) ? (row[4] ?? null) : null;
     const reportText = Array.isArray(row) ? String(row[5] ?? "") : "";
 
-    const nowUtc = new Date();
-    const dataHour = formatRedemetUtcHour(nowUtc);
-    const warningUrl = new URL(`https://api-redemet.decea.mil.br/mensagens/aviso/${station}`);
-    warningUrl.searchParams.set("api_key", apiKey);
-    warningUrl.searchParams.set("data_ini", dataHour);
-    warningUrl.searchParams.set("data_fim", dataHour);
-
     let warningText: string | null = null;
     let hasAdWarning = false;
 
     try {
+      const warningUrl = new URL("https://api-redemet.decea.mil.br/mensagens/aviso/pais/list");
+      warningUrl.searchParams.set("api_key", apiKey);
+
       const warningResponse = await fetch(warningUrl.toString(), {
         method: "GET",
         headers: { Accept: "application/json" },
@@ -430,9 +432,34 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
       if (warningResponse.ok) {
         const warningPayload = await warningResponse.json();
         const warningRows = extractAlertRows(warningPayload);
+        const nowUtc = new Date();
         const matchedWarning = warningRows
           .map((row) => String(row.mens ?? "").trim())
-          .find((text) => /AD\s+WRNG/i.test(text));
+          .find((text) => {
+            if (!/AD\s+WRNG/i.test(text)) return false;
+            if (!text.toUpperCase().includes(station)) return false;
+
+            const validityMatch = text
+              .toUpperCase()
+              .match(/\bVALID\s+(\d{2})(\d{2})(\d{2})\/(\d{2})(\d{2})(\d{2})\b/);
+
+            if (!validityMatch) return true;
+
+            const startsAt = resolveUtcDate(
+              Number(validityMatch[1]),
+              Number(validityMatch[2]),
+              Number(validityMatch[3]),
+              nowUtc,
+            );
+            const endsAt = resolveUtcDate(
+              Number(validityMatch[4]),
+              Number(validityMatch[5]),
+              Number(validityMatch[6]),
+              startsAt,
+            );
+
+            return nowUtc < endsAt;
+          });
         if (matchedWarning) {
           warningText = matchedWarning;
           hasAdWarning = true;
