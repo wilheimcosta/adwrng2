@@ -262,7 +262,35 @@ async function fetchWmoIdByIcao(icao: string): Promise<string | null> {
   }
 }
 
-function extractAdWarning(reportText: string): { hasAdWarning: boolean; warningText: string | null } {
+function isAdWarningActiveAt(text: string, reference: Date): boolean {
+  if (!/AD\s+WRNG/i.test(text)) return false;
+
+  const validityMatch = text
+    .toUpperCase()
+    .match(/\bVALID\s+(\d{2})(\d{2})(\d{2})\/(\d{2})(\d{2})(\d{2})\b/);
+
+  if (!validityMatch) return true;
+
+  const startsAt = resolveUtcDate(
+    Number(validityMatch[1]),
+    Number(validityMatch[2]),
+    Number(validityMatch[3]),
+    reference,
+  );
+  const endsAt = resolveUtcDate(
+    Number(validityMatch[4]),
+    Number(validityMatch[5]),
+    Number(validityMatch[6]),
+    startsAt,
+  );
+
+  return reference >= startsAt && reference < endsAt;
+}
+
+function extractAdWarning(
+  reportText: string,
+  reference: Date = new Date(),
+): { hasAdWarning: boolean; warningText: string | null } {
   const normalized = String(reportText ?? "");
   if (!normalized.trim()) return { hasAdWarning: false, warningText: null };
 
@@ -275,7 +303,7 @@ function extractAdWarning(reportText: string): { hasAdWarning: boolean; warningT
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const warningLine = lines.find((line) => /AD WRNG/i.test(line));
+  const warningLine = lines.find((line) => isAdWarningActiveAt(line, reference));
   if (warningLine) return { hasAdWarning: true, warningText: warningLine };
 
   return { hasAdWarning: false, warningText: null };
@@ -400,6 +428,7 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
 
   try {
     const station = icao.toUpperCase();
+    const nowUtc = new Date();
     const statusUrl = `https://api-redemet.decea.mil.br/aerodromos/status/localidades/${station}?api_key=${apiKey}`;
     const statusResponse = await fetch(statusUrl, {
       method: "GET",
@@ -432,33 +461,11 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
       if (warningResponse.ok) {
         const warningPayload = await warningResponse.json();
         const warningRows = extractAlertRows(warningPayload);
-        const nowUtc = new Date();
         const matchedWarning = warningRows
           .map((row) => String(row.mens ?? "").trim())
           .find((text) => {
-            if (!/AD\s+WRNG/i.test(text)) return false;
             if (!text.toUpperCase().includes(station)) return false;
-
-            const validityMatch = text
-              .toUpperCase()
-              .match(/\bVALID\s+(\d{2})(\d{2})(\d{2})\/(\d{2})(\d{2})(\d{2})\b/);
-
-            if (!validityMatch) return true;
-
-            const startsAt = resolveUtcDate(
-              Number(validityMatch[1]),
-              Number(validityMatch[2]),
-              Number(validityMatch[3]),
-              nowUtc,
-            );
-            const endsAt = resolveUtcDate(
-              Number(validityMatch[4]),
-              Number(validityMatch[5]),
-              Number(validityMatch[6]),
-              startsAt,
-            );
-
-            return nowUtc < endsAt;
+            return isAdWarningActiveAt(text, nowUtc);
           });
         if (matchedWarning) {
           warningText = matchedWarning;
@@ -470,7 +477,7 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
     }
 
     if (!hasAdWarning) {
-      const fallback = extractAdWarning(reportText);
+      const fallback = extractAdWarning(reportText, nowUtc);
       hasAdWarning = fallback.hasAdWarning;
       warningText = fallback.warningText;
     }
