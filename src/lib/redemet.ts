@@ -262,7 +262,35 @@ async function fetchWmoIdByIcao(icao: string): Promise<string | null> {
   }
 }
 
-function extractAdWarning(reportText: string): { hasAdWarning: boolean; warningText: string | null } {
+function isAdWarningActiveAt(text: string, reference: Date): boolean {
+  if (!/AD\s+WRNG/i.test(text)) return false;
+
+  const validityMatch = text
+    .toUpperCase()
+    .match(/\bVALID\s+(\d{2})(\d{2})(\d{2})\/(\d{2})(\d{2})(\d{2})\b/);
+
+  if (!validityMatch) return true;
+
+  const startsAt = resolveUtcDate(
+    Number(validityMatch[1]),
+    Number(validityMatch[2]),
+    Number(validityMatch[3]),
+    reference,
+  );
+  const endsAt = resolveUtcDate(
+    Number(validityMatch[4]),
+    Number(validityMatch[5]),
+    Number(validityMatch[6]),
+    startsAt,
+  );
+
+  return reference >= startsAt && reference < endsAt;
+}
+
+function extractAdWarning(
+  reportText: string,
+  reference: Date = new Date(),
+): { hasAdWarning: boolean; warningText: string | null } {
   const normalized = String(reportText ?? "");
   if (!normalized.trim()) return { hasAdWarning: false, warningText: null };
 
@@ -275,10 +303,37 @@ function extractAdWarning(reportText: string): { hasAdWarning: boolean; warningT
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const warningLine = lines.find((line) => /AD WRNG/i.test(line));
+  const warningLine = lines.find((line) => isAdWarningActiveAt(line, reference));
   if (warningLine) return { hasAdWarning: true, warningText: warningLine };
 
   return { hasAdWarning: false, warningText: null };
+}
+
+function resolveUtcDate(day: number, hour: number, minute: number, reference: Date): Date {
+  const year = reference.getUTCFullYear();
+  const month = reference.getUTCMonth();
+  const candidateOffsets = [-1, 0, 1].map((monthOffset) =>
+    new Date(Date.UTC(year, month + monthOffset, day, hour, minute, 0, 0)),
+  );
+
+  return candidateOffsets.reduce((closest, candidate) => {
+    const closestDistance = Math.abs(closest.getTime() - reference.getTime());
+    const candidateDistance = Math.abs(candidate.getTime() - reference.getTime());
+    return candidateDistance < closestDistance ? candidate : closest;
+  });
+}
+
+function extractAlertRows(payload: unknown): RedemetAlert[] {
+  const dataLevel = (payload as { data?: unknown })?.data;
+  if (Array.isArray(dataLevel)) return dataLevel as RedemetAlert[];
+
+  const nestedLevel = (dataLevel as { data?: unknown } | undefined)?.data;
+  if (Array.isArray(nestedLevel)) return nestedLevel as RedemetAlert[];
+
+  const deepLevel = (nestedLevel as { data?: unknown } | undefined)?.data;
+  if (Array.isArray(deepLevel)) return deepLevel as RedemetAlert[];
+
+  return [];
 }
 
 /**
@@ -302,11 +357,7 @@ export async function fetchRedemetAlerts(icao: string): Promise<RedemetResponse>
     }
 
     const payload = await response.json();
-    const alerts: RedemetAlert[] =
-      (Array.isArray(payload?.data) ? payload.data : null) ??
-      (Array.isArray(payload?.data?.data) ? payload.data.data : null) ??
-      (Array.isArray(payload?.data?.data?.data) ? payload.data.data.data : null) ??
-      [];
+    const alerts = extractAlertRows(payload);
 
     return { data: alerts };
   } catch (error) {
@@ -376,28 +427,66 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
   }
 
   try {
-    const url = `https://api-redemet.decea.mil.br/aerodromos/status/localidades/${icao.toUpperCase()}?api_key=${apiKey}`;
-    const response = await fetch(url, {
+    const station = icao.toUpperCase();
+    const nowUtc = new Date();
+    const statusUrl = `https://api-redemet.decea.mil.br/aerodromos/status/localidades/${station}?api_key=${apiKey}`;
+    const statusResponse = await fetch(statusUrl, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
 
-    if (!response.ok) {
-      return { flag: null, reportText: "", hasAdWarning: false, warningText: null, error: `REDEMET retornou ${response.status}` };
+    if (!statusResponse.ok) {
+      return { flag: null, reportText: "", hasAdWarning: false, warningText: null, error: `REDEMET retornou ${statusResponse.status}` };
     }
 
-    const data = await response.json();
-    const rows = Array.isArray((data as any)?.data) ? (data as any).data : [];
-    const upperIcao = icao.toUpperCase();
-    const row = rows.find((r: unknown) => Array.isArray(r) && String((r as any)[0] ?? "").toUpperCase() === upperIcao) ?? rows[0];
+    const statusPayload = await statusResponse.json();
+    const statusRows = Array.isArray((statusPayload as { data?: unknown })?.data)
+      ? ((statusPayload as { data?: unknown[] }).data ?? [])
+      : [];
+    const row = statusRows.find((r) => Array.isArray(r) && String(r[0] ?? "").toUpperCase() === station) ?? statusRows[0];
     const flag = Array.isArray(row) ? (row[4] ?? null) : null;
     const reportText = Array.isArray(row) ? String(row[5] ?? "") : "";
-    const warning = extractAdWarning(reportText);
+
+    let warningText: string | null = null;
+    let hasAdWarning = false;
+
+    try {
+      const warningUrl = new URL("https://api-redemet.decea.mil.br/mensagens/aviso/pais/list");
+      warningUrl.searchParams.set("api_key", apiKey);
+
+      const warningResponse = await fetch(warningUrl.toString(), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      if (warningResponse.ok) {
+        const warningPayload = await warningResponse.json();
+        const warningRows = extractAlertRows(warningPayload);
+        const matchedWarning = warningRows
+          .map((row) => String(row.mens ?? "").trim())
+          .find((text) => {
+            if (!text.toUpperCase().includes(station)) return false;
+            return isAdWarningActiveAt(text, nowUtc);
+          });
+        if (matchedWarning) {
+          warningText = matchedWarning;
+          hasAdWarning = true;
+        }
+      }
+    } catch {
+      // keep status available even if warning endpoint is temporarily unavailable
+    }
+
+    if (!hasAdWarning) {
+      const fallback = extractAdWarning(reportText, nowUtc);
+      hasAdWarning = fallback.hasAdWarning;
+      warningText = fallback.warningText;
+    }
+
     return {
       flag: flag ? String(flag) : null,
       reportText,
-      hasAdWarning: warning.hasAdWarning,
-      warningText: warning.warningText,
+      hasAdWarning,
+      warningText,
     };
   } catch (e) {
     console.error("Fetch error:", e);
