@@ -31,6 +31,20 @@ import {
 } from "@/lib/redemet";
 
 const CHECK_INTERVAL_SECONDS = 30;
+const HOUR_IN_MS = 60 * 60 * 1000;
+
+function getMsUntilNextUtcHour(now: Date): number {
+  const nextHourUtc = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    now.getUTCHours() + 1,
+    0,
+    0,
+    0,
+  );
+  return Math.max(nextHourUtc - now.getTime(), 0);
+}
 const CIRCLE_RADIUS = 18;
 const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
@@ -423,6 +437,7 @@ export default function Dashboard() {
     data: metarHistoryData,
     isFetching: isFetchingMetarHistory,
     error: metarHistoryError,
+    refetch: refetchMetarHistory,
   } = useQuery({
     queryKey: ["metar-history-24h", icao],
     queryFn: async () => {
@@ -440,6 +455,7 @@ export default function Dashboard() {
     data: synopHistoryData,
     isFetching: isFetchingSynopHistory,
     error: synopHistoryError,
+    refetch: refetchSynopHistory,
   } = useQuery({
     queryKey: ["synop-history-24h", icao],
     queryFn: async () => {
@@ -1215,6 +1231,26 @@ export default function Dashboard() {
     );
     return () => window.clearInterval(t);
   }, []);
+
+
+  useEffect(() => {
+    if (!/^[A-Z]{4}$/.test(icao)) return;
+
+    let timeoutId: number | null = null;
+    const runHourlyRefetch = () => {
+      void refetch();
+      void refetchMetarHistory();
+      void refetchSynopHistory();
+
+      timeoutId = window.setTimeout(runHourlyRefetch, HOUR_IN_MS);
+    };
+
+    timeoutId = window.setTimeout(runHourlyRefetch, getMsUntilNextUtcHour(new Date()));
+
+    return () => {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    };
+  }, [icao, refetch, refetchMetarHistory, refetchSynopHistory]);
 
   useEffect(() => {
     if (nextCheck !== 0) return;
