@@ -32,6 +32,13 @@ const CHECK_INTERVAL_SECONDS = 30;
 const CIRCLE_RADIUS = 18;
 const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
+function getMsUntilNextUtcHour(from: Date): number {
+  const nextHour = new Date(from);
+  nextHour.setUTCMinutes(0, 0, 0);
+  nextHour.setUTCHours(nextHour.getUTCHours() + 1);
+  return Math.max(1, nextHour.getTime() - from.getTime());
+}
+
 type DashboardWarning = { mensagem: string };
 
 type SynopRow = {
@@ -435,6 +442,7 @@ export default function Dashboard() {
     data: aiswebData,
     isFetching: isFetchingAisweb,
     error: aiswebError,
+    refetch: refetchAisweb,
   } = useQuery({
     queryKey: ["aisweb-rotaer", warningIcaos.join(",")],
     queryFn: async () => {
@@ -952,6 +960,39 @@ export default function Dashboard() {
       setNextCheck(CHECK_INTERVAL_SECONDS);
     })();
   }, [nextCheck, refetch]);
+
+  useEffect(() => {
+    let timeoutId: number | null = null;
+
+    const scheduleHourlyRefetch = () => {
+      const delay = getMsUntilNextUtcHour(new Date());
+      timeoutId = window.setTimeout(async () => {
+        if (!isHistoryView) {
+          await Promise.all([
+            refetch(),
+            refetchMetarHistory(),
+            refetchSynopHistory(),
+            refetchAisweb(),
+          ]);
+          setNextCheck(CHECK_INTERVAL_SECONDS);
+        }
+        scheduleHourlyRefetch();
+      }, delay);
+    };
+
+    scheduleHourlyRefetch();
+    return () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [
+    isHistoryView,
+    refetch,
+    refetchAisweb,
+    refetchMetarHistory,
+    refetchSynopHistory,
+  ]);
 
   useEffect(() => {
     setNextCheck(CHECK_INTERVAL_SECONDS);
