@@ -1,5 +1,7 @@
 import { fetchWithTimeout, isIcao, queryValue, sendJson, utcHourTimestamp, type ApiRequest, type ApiResponse } from "../server/http";
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export default async function handler(request: ApiRequest, response: ApiResponse) {
   if (request.method !== "GET") return sendJson(response, 405, { error: "Method not allowed" });
   const apiKey = process.env.REDEMET_API_KEY;
@@ -21,9 +23,22 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   } else return sendJson(response, 400, { error: "Parâmetros de consulta inválidos." });
 
   try {
-    const upstream = await fetchWithTimeout(`https://api-redemet.decea.mil.br${path}?${params.toString()}`, { headers: { Accept: "application/json" } });
+    const url = `https://api-redemet.decea.mil.br${path}?${params.toString()}`;
+    let upstream: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      upstream = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 4_000);
+      if (upstream.status < 500 || attempt === 2) break;
+      await sleep(250 * (attempt + 1));
+    }
+    if (!upstream) return sendJson(response, 502, { error: "REDEMET indisponível." });
     const payload = await upstream.json().catch(() => null);
-    if (!upstream.ok) return sendJson(response, upstream.status, { error: `REDEMET retornou ${upstream.status}` });
+    if (!upstream.ok) {
+      console.error("REDEMET upstream failure", { resource, status: upstream.status, payload });
+      return sendJson(response, 502, { error: "REDEMET indisponível após novas tentativas. Tente novamente em instantes." });
+    }
     return sendJson(response, 200, payload);
-  } catch { return sendJson(response, 504, { error: "Tempo esgotado ao consultar a REDEMET." }); }
+  } catch (error) {
+    console.error("REDEMET request failed", { resource, error: error instanceof Error ? error.message : String(error) });
+    return sendJson(response, 504, { error: "Tempo esgotado ao consultar a REDEMET." });
+  }
 }

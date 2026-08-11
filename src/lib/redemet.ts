@@ -40,6 +40,11 @@ function formatNetworkError(error: unknown, fallback: string): string {
   return /failed to fetch|networkerror|network request failed/i.test(message) ? "Falha de conexão com os serviços meteorológicos." : message || fallback;
 }
 
+async function responseError(response: Response, fallback: string): Promise<string> {
+  const payload: unknown = await response.json().catch(() => null);
+  return isRecord(payload) && typeof payload.error === "string" ? payload.error : fallback;
+}
+
 const wmoCache = new Map<string, string>();
 let wmoCsvMapPromise: Promise<Map<string, string>> | null = null;
 
@@ -105,7 +110,7 @@ function extractAdWarning(reportText: string) {
 export async function fetchRedemetAlerts(icao: string): Promise<RedemetResponse> {
   try {
     const response = await fetch(`/api/redemet?resource=alerts&icao=${encodeURIComponent(icao.toUpperCase())}`, { headers: { Accept: "application/json" } });
-    if (!response.ok) return { error: `REDEMET retornou ${response.status}` };
+    if (!response.ok) return { error: await responseError(response, `REDEMET retornou ${response.status}`) };
     const payload: unknown = await response.json();
     const root = dataOf(payload);
     const alerts = asRows(root).length ? asRows(root) : asRows(dataOf(root));
@@ -126,7 +131,7 @@ export function mapFlightRuleFromFlag(flag: unknown): FlightRule | null { const 
 export async function fetchAerodromeStatusDetails(icao: string): Promise<AerodromeStatusDetails> {
   try {
     const response = await fetch(`/api/redemet?resource=status&icao=${encodeURIComponent(icao.toUpperCase())}`, { headers: { Accept: "application/json" } });
-    if (!response.ok) return { flag: null, reportText: "", hasAdWarning: false, warningText: null, error: `REDEMET retornou ${response.status}` };
+    if (!response.ok) return { flag: null, reportText: "", hasAdWarning: false, warningText: null, error: await responseError(response, `REDEMET retornou ${response.status}`) };
     const rows = getStatusRows(await response.json());
     const row = rows.find((item) => String(item[0] ?? "").toUpperCase() === icao.toUpperCase()) ?? rows[0];
     const reportText = Array.isArray(row) ? String(row[5] ?? "") : "";
@@ -161,7 +166,7 @@ export async function fetchMetarHistory24h(icao: string): Promise<{ data: MetarH
   if (!/^[A-Z]{4}$/.test(station)) return { data: [], error: "ICAO inválido para consulta METAR." };
   try {
     const response = await fetch(`/api/redemet?resource=metar&icao=${encodeURIComponent(station)}`, { headers: { Accept: "application/json" } });
-    if (!response.ok) return { data: [], error: `REDEMET retornou ${response.status} para METAR.` };
+    if (!response.ok) return { data: [], error: await responseError(response, `REDEMET retornou ${response.status} para METAR.`) };
     const data = getRedemetRows(await response.json()).map((item) => ({ mens: String(item.mens ?? ""), recebimento: String(item.recebimento ?? ""), validade_inicial: String(item.validade_inicial ?? "") })).filter((item) => item.mens && item.validade_inicial);
     return { data };
   } catch (error) { return { data: [], error: formatNetworkError(error, "Falha ao consultar histórico METAR.") }; }
@@ -172,7 +177,7 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
   if (!wmoId) return { data: [], error: `Não foi possível determinar o WMO ID para ${icao}.` };
   try {
     const response = await fetch(`/api/redemet?resource=synop&wmo=${encodeURIComponent(wmoId)}`, { headers: { Accept: "application/json" } });
-    if (!response.ok) return { data: [], error: `REDEMET retornou ${response.status} para SYNOP.` };
+    if (!response.ok) return { data: [], error: await responseError(response, `REDEMET retornou ${response.status} para SYNOP.`) };
     const data = getRedemetRows(await response.json()).map((item) => ({ mens: String(item.mens ?? ""), validade_inicial: String(item.validade_inicial ?? "") })).filter((item) => item.mens && item.validade_inicial);
     return { data };
   } catch (error) { return { data: [], error: formatNetworkError(error, "Falha ao consultar histórico SYNOP.") }; }
