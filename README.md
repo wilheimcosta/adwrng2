@@ -4,7 +4,7 @@ Painel web para monitorar **Avisos de Aeródromo (AD WRNG)** da REDEMET para o a
 
 ## Escopo Atual
 
-- Monitoramento fixo em `SBMQ`.
+- Monitoramento por ICAO, com `SBMQ` como padrão.
 - Atualização periódica dos avisos.
 - Sem Supabase.
 - Sem histórico persistido.
@@ -30,9 +30,12 @@ cp .env.example .env
 
 3. Preencha no `.env`:
 
-- `VITE_REDEMET_API_KEY`
-- `VITE_AISWEB_API_KEY`
-- `VITE_AISWEB_API_PASS`
+- `REDEMET_API_KEY`
+- `AISWEB_API_KEY`
+- `AISWEB_API_PASS`
+
+Em produção na Vercel, configure essas variáveis no painel do projeto. Não use o
+prefixo `VITE_`: ele torna o valor público no bundle do navegador.
 
 ## Desenvolvimento
 

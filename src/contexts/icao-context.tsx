@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 type IcaoContextValue = {
   icao: string;
@@ -24,14 +24,14 @@ export function IcaoProvider({ children }: { children: React.ReactNode }) {
   const [icao, setIcao] = useState(getInitialIcao);
   const [inputIcao, setInputIcao] = useState(icao);
 
-  const searchIcao = () => {
+  const searchIcao = useCallback(() => {
     const normalized = normalizeIcao(inputIcao);
     if (!/^[A-Z]{4}$/.test(normalized)) return false;
     setIcao(normalized);
     setInputIcao(normalized);
     localStorage.setItem("adwrng_icao", normalized);
     return true;
-  };
+  }, [inputIcao]);
 
   const value = useMemo(
     () => ({
@@ -40,7 +40,7 @@ export function IcaoProvider({ children }: { children: React.ReactNode }) {
       setInputIcao,
       searchIcao,
     }),
-    [icao, inputIcao],
+    [icao, inputIcao, searchIcao],
   );
 
   return <IcaoContext.Provider value={value}>{children}</IcaoContext.Provider>;
