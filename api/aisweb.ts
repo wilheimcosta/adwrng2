@@ -1,4 +1,4 @@
-import { fetchWithTimeout, getQueryParam, sendJson, type ApiRequest, type ApiResponse } from "../server/http";
+import { fetchWithTimeout, getQueryParam, sendJson, type ApiRequest, type ApiResponse } from "../server/http.js";
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
   if (request.method !== "GET") return sendJson(response, 405, { error: "Method not allowed" });
