@@ -1,15 +1,21 @@
-import { fetchWithTimeout, isIcao, queryValue, sendJson, utcHourTimestamp, type ApiRequest, type ApiResponse } from "../server/http";
+import { fetchWithTimeout, getQueryParam, isIcao, sendJson, utcHourTimestamp, type ApiRequest, type ApiResponse } from "../server/http";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
   if (request.method !== "GET") return sendJson(response, 405, { error: "Method not allowed" });
-  const apiKey = process.env.REDEMET_API_KEY;
-  if (!apiKey) return sendJson(response, 503, { error: "Serviço REDEMET não configurado." });
 
-  const resource = queryValue(request.query.resource);
-  const icao = queryValue(request.query.icao).trim().toUpperCase();
-  const wmo = queryValue(request.query.wmo).trim();
+  const apiKey = process.env.REDEMET_API_KEY || process.env.VITE_REDEMET_API_KEY;
+  if (!apiKey) {
+    return sendJson(response, 503, {
+      error: "REDEMET_API_KEY não configurada. Adicione REDEMET_API_KEY nas variáveis de ambiente do projeto na Vercel.",
+    });
+  }
+
+  const resource = getQueryParam(request, "resource");
+  const icao = getQueryParam(request, "icao").trim().toUpperCase();
+  const wmo = getQueryParam(request, "wmo").trim();
+
   const params = new URLSearchParams({ api_key: apiKey });
   let path = "";
   if (resource === "status" && isIcao(icao)) path = `/aerodromos/status/localidades/${icao}`;
@@ -17,17 +23,22 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   else if (resource === "aviso_pais_list") path = "/mensagens/aviso/pais/list";
   else if (resource === "metar" && isIcao(icao)) {
     path = `/mensagens/metar/${icao}`;
-    params.set("data_ini", utcHourTimestamp(24)); params.set("data_fim", utcHourTimestamp());
+    params.set("data_ini", utcHourTimestamp(24));
+    params.set("data_fim", utcHourTimestamp());
   } else if (resource === "synop" && /^\d{5}$/.test(wmo)) {
     path = "/mensagens/synop";
-    params.set("estacao", wmo); params.set("data_ini", utcHourTimestamp(24)); params.set("data_fim", utcHourTimestamp());
-  } else return sendJson(response, 400, { error: "Parâmetros de consulta inválidos." });
+    params.set("estacao", wmo);
+    params.set("data_ini", utcHourTimestamp(24));
+    params.set("data_fim", utcHourTimestamp());
+  } else {
+    return sendJson(response, 400, { error: "Parâmetros de consulta inválidos." });
+  }
 
   try {
     const url = `https://api-redemet.decea.mil.br${path}?${params.toString()}`;
     let upstream: Response | null = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      upstream = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 4_000);
+      upstream = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 5_000);
       if (upstream.status < 500 || attempt === 2) break;
       await sleep(250 * (attempt + 1));
     }

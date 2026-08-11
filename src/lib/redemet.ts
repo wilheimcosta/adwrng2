@@ -304,6 +304,7 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
   const nowUtc = new Date();
   let flag: string | null = null;
   let reportText = "";
+  let statusError: string | undefined = undefined;
 
   try {
     const statusResponse = await fetch(`/api/redemet?resource=status&icao=${encodeURIComponent(station)}`, {
@@ -316,9 +317,22 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
         flag = row[4] ? String(row[4]) : null;
         reportText = Array.isArray(row) ? String(row[5] ?? "") : "";
       }
+    } else {
+      statusError = await responseError(statusResponse, `REDEMET retornou HTTP ${statusResponse.status}`);
     }
   } catch (error) {
-    console.error("Status fetch error:", error);
+    statusError = formatNetworkError(error, "Falha ao consultar o status do aeródromo.");
+  }
+
+  if (!reportText) {
+    try {
+      const metarRes = await fetchMetarHistory24h(station);
+      if (metarRes.data && metarRes.data.length > 0) {
+        reportText = metarRes.data[0].mens;
+      }
+    } catch {
+      // ignore metar fallback error
+    }
   }
 
   let warningText: string | null = null;
@@ -357,6 +371,7 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
     reportText,
     hasAdWarning,
     warningText,
+    error: !reportText && !flag && statusError ? statusError : undefined,
   };
 }
 
