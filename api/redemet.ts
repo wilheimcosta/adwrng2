@@ -14,6 +14,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   let path = "";
   if (resource === "status" && isIcao(icao)) path = `/aerodromos/status/localidades/${icao}`;
   else if (resource === "alerts" && isIcao(icao)) path = `/mensagens/aviso/${icao}`;
+  else if (resource === "aviso_pais_list") path = "/mensagens/aviso/pais/list";
   else if (resource === "metar" && isIcao(icao)) {
     path = `/mensagens/metar/${icao}`;
     params.set("data_ini", utcHourTimestamp(24)); params.set("data_fim", utcHourTimestamp());

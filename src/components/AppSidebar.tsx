@@ -1,8 +1,8 @@
-import { Activity, Radio, Search } from "lucide-react";
+import { Activity, History, Radio, Search } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { useIcao } from "@/contexts/icao-context";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -22,12 +22,14 @@ const navItems = [{ title: "Dashboard", url: "/", icon: Activity }];
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
+  const navigate = useNavigate();
   const { icao, inputIcao, setInputIcao, searchIcao } = useIcao();
   const currentPath = location.pathname;
+  const historyMode = currentPath === "/" && new URLSearchParams(location.search).get("view") === "history";
   const collapsed = state === "collapsed";
 
   const isActive = (path: string) => {
-    if (path === "/") return currentPath === path;
+    if (path === "/") return currentPath === path && !historyMode;
     return currentPath.startsWith(path);
   };
 
@@ -138,23 +140,31 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => navigate({ pathname: "/", search: "?view=history" })}
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition-all ${
+                    historyMode
+                      ? "bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_hsl(190_95%_55%/0.08)]"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <History className="w-4 h-4" />
+                  {!collapsed && <span className="font-medium">History</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="px-5 py-3 border-t border-border/60">
-        <div className="flex items-center gap-2.5">
-          <div className="relative flex items-center justify-center">
-            <div className="w-2 h-2 rounded-full bg-primary" />
-            <div className="absolute w-2 h-2 rounded-full bg-primary animate-ping opacity-40" />
+        {!collapsed && (
+          <div className="flex items-center gap-2 text-[9px] font-mono uppercase tracking-[0.15em] text-muted-foreground/50">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            Sys Online
           </div>
-          {!collapsed && (
-            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-              SYS ONLINE
-            </span>
-          )}
-        </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
