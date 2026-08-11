@@ -1,4 +1,4 @@
-import { fetchWithTimeout, getQueryParam, isIcao, sendJson, utcHourTimestamp, type ApiRequest, type ApiResponse } from "../server/http";
+import { fetchWithTimeout, getQueryParam, isIcao, sendJson, utcHourTimestamp, type ApiRequest, type ApiResponse } from "../server/http.js";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
