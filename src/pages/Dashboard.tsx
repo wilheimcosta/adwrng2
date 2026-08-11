@@ -502,8 +502,8 @@ export default function Dashboard() {
       }
 
       const ordered = [...items].sort((a, b) => {
-        const ta = parseUtcDate(a.recebimento)?.getTime() ?? 0;
-        const tb = parseUtcDate(b.recebimento)?.getTime() ?? 0;
+        const ta = parseUtcDate(a.item.recebimento)?.getTime() ?? 0;
+        const tb = parseUtcDate(b.item.recebimento)?.getTime() ?? 0;
         return tb - ta;
       });
       const best = ordered[0].item;
