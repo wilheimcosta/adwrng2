@@ -24,12 +24,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   else if (resource === "metar" && isIcao(icao)) {
     path = `/mensagens/metar/${icao}`;
     params.set("data_ini", utcHourTimestamp(24));
-    params.set("data_fim", utcHourTimestamp());
+    params.set("data_fim", utcHourTimestamp(-1));
   } else if (resource === "synop" && /^\d{5}$/.test(wmo)) {
     path = "/mensagens/synop";
     params.set("estacao", wmo);
     params.set("data_ini", utcHourTimestamp(24));
-    params.set("data_fim", utcHourTimestamp());
+    params.set("data_fim", utcHourTimestamp(-1));
   } else {
     return sendJson(response, 400, { error: "Parâmetros de consulta inválidos." });
   }
@@ -38,9 +38,9 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     const url = `https://api-redemet.decea.mil.br${path}?${params.toString()}`;
     let upstream: Response | null = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      upstream = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 5_000);
-      if (upstream.status < 500 || attempt === 2) break;
-      await sleep(250 * (attempt + 1));
+      upstream = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 8_000);
+      if ((upstream.status < 500 && upstream.status !== 429) || attempt === 2) break;
+      await sleep(300 * (attempt + 1));
     }
     if (!upstream) return sendJson(response, 502, { error: "REDEMET indisponível." });
     const payload = await upstream.json().catch(() => null);

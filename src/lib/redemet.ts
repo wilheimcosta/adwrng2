@@ -62,8 +62,8 @@ function normalizeText(input: string) {
 }
 
 export function isAerodromeWarning(alert: RedemetAlert): boolean {
-  const rawMsg = (alert as any).mensagem ?? (alert as any).mens ?? "";
-  const rawTipo = (alert as any).tipo ?? "";
+  const rawMsg = String(alert.mensagem ?? alert.mens ?? "");
+  const rawTipo = String(alert.tipo ?? "");
 
   const tipo = normalizeText(String(rawTipo));
   const msg = normalizeText(String(rawMsg));
@@ -346,7 +346,7 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
       const warningPayload = await warningResponse.json();
       const warningRows = extractAlertRows(warningPayload);
       const matchedWarning = warningRows
-        .map((row) => String((row as any).mensagem ?? (row as any).mens ?? "").trim())
+        .map((row) => String(row.mensagem ?? row.mens ?? "").trim())
         .find((text) => {
           if (!text.toUpperCase().includes(station)) return false;
           return isAdWarningActiveAt(text, nowUtc);
@@ -458,4 +458,123 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
   } catch (error) {
     return { data: [], error: formatNetworkError(error, "Falha ao consultar histórico SYNOP.") };
   }
+}
+
+export function parseUtcDate(dateTime: string): Date | null {
+  const value = String(dateTime ?? "").trim();
+  if (!value) return null;
+  const parsed = new Date(value.replace(" ", "T") + "Z");
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function resolveDayHourMinuteWithReference(
+  day: number,
+  hour: number,
+  minute: number,
+  reference: Date,
+): Date {
+  const y = reference.getUTCFullYear();
+  const m = reference.getUTCMonth();
+  const candidate = new Date(Date.UTC(y, m, day, hour, minute, 0, 0));
+  const diffDays = Math.round((candidate.getTime() - reference.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays > 20) return new Date(Date.UTC(y, m - 1, day, hour, minute, 0, 0));
+  if (diffDays < -20) return new Date(Date.UTC(y, m + 1, day, hour, minute, 0, 0));
+  return candidate;
+}
+
+export function getMessageNominalUtc(item: MetarHistoryItem): Date | null {
+  const ref =
+    parseUtcDate(item.validade_inicial) ??
+    parseUtcDate(item.recebimento) ??
+    new Date();
+
+  const match = String(item.mens ?? "").toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
+  if (!match) return parseUtcDate(item.validade_inicial) ?? null;
+
+  const day = Number(match[1]);
+  const hour = Number(match[2]);
+  const minute = Number(match[3]);
+  if ([day, hour, minute].some((v) => Number.isNaN(v))) {
+    return parseUtcDate(item.validade_inicial) ?? null;
+  }
+  return resolveDayHourMinuteWithReference(day, hour, minute, ref);
+}
+
+export function toUtcHourKey(date: Date): string {
+  return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}${String(date.getUTCHours()).padStart(2, "0")}`;
+}
+
+export function isMetarWatchMinute(minuteUtc: number): boolean {
+  return minuteUtc >= 55 && minuteUtc < 60;
+}
+
+export function isSynopticPublicationHour(hourUtc: number): boolean {
+  return hourUtc >= 0 && hourUtc <= 23 && hourUtc % 3 === 0;
+}
+
+export function nextSynopticHourDate(from: Date): Date {
+  const next = new Date(
+    Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), from.getUTCHours(), 0, 0, 0),
+  );
+  next.setUTCHours(next.getUTCHours() + 1);
+  while (!isSynopticPublicationHour(next.getUTCHours())) {
+    next.setUTCHours(next.getUTCHours() + 1);
+  }
+  return next;
+}
+
+function getSynopObservationHourUtc(item: SynopHistoryItem): Date | null {
+  const ref = parseUtcDate(item.validade_inicial);
+  if (!ref) return null;
+  const match = String(item.mens ?? "").toUpperCase().match(/\bAAXX\s+(\d{2})(\d{2})/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const hour = Number(match[2]);
+  if ([day, hour].some((v) => Number.isNaN(v))) return null;
+  return resolveDayHourMinuteWithReference(day, hour, 0, ref);
+}
+
+export function hasMetarForHour(items: MetarHistoryItem[], targetUtcHourKey: string): boolean {
+  return items.some((item) => {
+    const upper = String(item.mens ?? "").toUpperCase().trim();
+    if (!/^(METAR|SPECI)\b/.test(upper)) return false;
+    const nominal = getMessageNominalUtc(item);
+    return nominal !== null && toUtcHourKey(nominal) === targetUtcHourKey;
+  });
+}
+
+export function metarHourKeyFromReportText(reportText: string, reference: Date = new Date()): string | null {
+  const lines = String(reportText ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const metarLine = lines.find((line) => /^(METAR|SPECI)\b/i.test(line));
+  if (!metarLine) return null;
+
+  const match = metarLine.toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const hour = Number(match[2]);
+  const minute = Number(match[3]);
+  if ([day, hour, minute].some((value) => Number.isNaN(value))) return null;
+
+  return toUtcHourKey(resolveDayHourMinuteWithReference(day, hour, minute, reference));
+}
+
+export function hasSynopForHour(items: SynopHistoryItem[], targetUtcHourKey: string): boolean {
+  return items.some((item) => {
+    const parsed = parseUtcDate(item.validade_inicial);
+    if (parsed !== null && toUtcHourKey(parsed) === targetUtcHourKey) return true;
+    const observation = getSynopObservationHourUtc(item);
+    return observation !== null && toUtcHourKey(observation) === targetUtcHourKey;
+  });
+}
+
+export function isPendingAlertStale(
+  pendingSinceMs: number | null,
+  nowMs: number,
+  maxMs: number,
+): boolean {
+  return pendingSinceMs !== null && nowMs - pendingSinceMs > maxMs;
 }

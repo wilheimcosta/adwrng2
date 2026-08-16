@@ -30,7 +30,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
         return;
       }
     }
-    (response as any).statusCode = 200;
+    response.statusCode = 200;
     if (typeof response.end === "function") {
       response.end(body);
     }

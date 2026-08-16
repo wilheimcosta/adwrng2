@@ -8,7 +8,7 @@ export type ApiResponse = {
   setHeader(name: string, value: string): void;
   status?: (code: number) => { json: (payload: unknown) => void; send: (payload: string) => void };
   statusCode?: number;
-  end?: (chunk?: any) => void;
+  end?: (chunk?: string | Uint8Array) => void;
 };
 
 export function getQueryParam(request: ApiRequest, key: string): string {
@@ -43,7 +43,7 @@ export function sendJson(response: ApiResponse, status: number, payload: unknown
         return;
       }
     }
-    (response as any).statusCode = status;
+    response.statusCode = status;
     if (typeof response.end === "function") {
       response.end(JSON.stringify(payload));
     }
@@ -64,7 +64,7 @@ export async function fetchWithTimeout(url: string, init: RequestInit = {}, time
 
 export function utcHourTimestamp(hoursAgo = 0): string {
   const date = new Date();
-  if (hoursAgo > 0) {
+  if (hoursAgo !== 0) {
     date.setUTCHours(date.getUTCHours() - hoursAgo);
   }
   const year = date.getUTCFullYear();
