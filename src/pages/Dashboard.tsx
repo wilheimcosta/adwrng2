@@ -29,6 +29,7 @@ import {
   isMetarWatchMinute,
   isPendingAlertStale,
   mapFlightRuleFromFlag,
+  metarHourKeyFromReportText,
   nextSynopticHourDate,
   parseUtcDate,
   toUtcHourKey,
@@ -573,6 +574,14 @@ export default function Dashboard() {
       void refetch();
     }
   }, [metarPendingHourKey, metarHistoryData, refetch]);
+
+  useEffect(() => {
+    if (metarPendingHourKey === null || !statusData?.reportText) return;
+    if (metarHourKeyFromReportText(statusData.reportText) === metarPendingHourKey) {
+      setMetarPendingHourKey(null);
+      setMetarPendingSinceMs(null);
+    }
+  }, [metarPendingHourKey, statusData?.reportText]);
 
   useEffect(() => {
     if (
@@ -1367,6 +1376,8 @@ export default function Dashboard() {
                   {metarAlertStale
                     ? " — significantly delayed."
                     : ". Checking every 10 seconds..."}
+                  {metarDataUpdatedAt > 0 &&
+                    ` · last OPMET data ${Math.max(0, Math.round((Date.now() - metarDataUpdatedAt) / 1000))}s ago`}
                 </p>
               </div>
             </div>
@@ -1385,6 +1396,8 @@ export default function Dashboard() {
                   {synopAlertStale
                     ? " — significantly delayed."
                     : ". Checking every 10 seconds..."}
+                  {synopDataUpdatedAt > 0 &&
+                    ` · last OPMET data ${Math.max(0, Math.round((Date.now() - synopDataUpdatedAt) / 1000))}s ago`}
                 </p>
               </div>
             </div>

@@ -543,6 +543,25 @@ export function hasMetarForHour(items: MetarHistoryItem[], targetUtcHourKey: str
   });
 }
 
+export function metarHourKeyFromReportText(reportText: string, reference: Date = new Date()): string | null {
+  const lines = String(reportText ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const metarLine = lines.find((line) => /^(METAR|SPECI)\b/i.test(line));
+  if (!metarLine) return null;
+
+  const match = metarLine.toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const hour = Number(match[2]);
+  const minute = Number(match[3]);
+  if ([day, hour, minute].some((value) => Number.isNaN(value))) return null;
+
+  return toUtcHourKey(resolveDayHourMinuteWithReference(day, hour, minute, reference));
+}
+
 export function hasSynopForHour(items: SynopHistoryItem[], targetUtcHourKey: string): boolean {
   return items.some((item) => {
     const parsed = parseUtcDate(item.validade_inicial);

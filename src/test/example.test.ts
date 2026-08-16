@@ -7,6 +7,7 @@ import {
   isPendingAlertStale,
   isSynopticPublicationHour,
   mapFlightRuleFromFlag,
+  metarHourKeyFromReportText,
   nextSynopticHourDate,
   toUtcHourKey,
 } from "@/lib/redemet";
@@ -177,5 +178,32 @@ describe("OPMET watch helpers", () => {
     ];
     expect(hasSynopForHour(items, "2026081115")).toBe(true);
     expect(hasSynopForHour(items, "2026081116")).toBe(false);
+  });
+
+  it("extracts the METAR hour key from the aerodrome status text", () => {
+    const text =
+      "METAR SBMQ 160200Z 02007KT 9999 FEW023 28/24 Q1013=\n\n" +
+      "TAF SBMQ 152102Z 1600/1624 06010KT 9999 SCT020 TN26/1609Z TX33/1618Z \nTEMPO 1602/1612 36007KT RMK PHI=\n\n" +
+      "Não há aviso para a localidade SBMQ";
+    const reference = new Date("2026-08-16T02:10:00Z");
+    expect(metarHourKeyFromReportText(text, reference)).toBe("2026081602");
+  });
+
+  it("extracts the METAR hour key from a SPECI status text", () => {
+    expect(
+      metarHourKeyFromReportText(
+        "SPECI SBMQ 160205Z 02007KT 9999 FEW023 28/24 Q1013=",
+        new Date("2026-08-16T02:10:00Z"),
+      ),
+    ).toBe("2026081602");
+  });
+
+  it("returns null when the status text has no METAR or SPECI line", () => {
+    const reference = new Date("2026-08-16T02:10:00Z");
+    expect(metarHourKeyFromReportText("Não há aviso para a localidade SBMQ", reference)).toBeNull();
+    expect(
+      metarHourKeyFromReportText("TAF SBMQ 152102Z 1600/1624 06010KT RMK PHI=", reference),
+    ).toBeNull();
+    expect(metarHourKeyFromReportText("", reference)).toBeNull();
   });
 });
