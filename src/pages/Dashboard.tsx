@@ -328,6 +328,7 @@ export default function Dashboard() {
   const alarmTimeoutRef = useRef<number | null>(null);
   const showAlarmRef = useRef(false);
   const lastMsgHashRef = useRef("");
+  const beepActiveRef = useRef(false);
 
   const {
     data: statusData,
@@ -540,6 +541,7 @@ export default function Dashboard() {
     ) {
       setMetarPendingHourKey(nextHourKey);
       setMetarPendingSinceMs(Date.now());
+      setNextCheck(10);
     }
   }, [isMetarWatchWindow, metarPendingHourKey, metarHistoryData, nextHourKey, metarDataUpdatedAt]);
 
@@ -552,6 +554,7 @@ export default function Dashboard() {
     ) {
       setSynopPendingHourKey(synopTargetKey);
       setSynopPendingSinceMs(Date.now());
+      setNextCheck(10);
     }
   }, [isSynopWatchWindow, synopPendingHourKey, synopHistoryData, synopTargetKey, synopDataUpdatedAt]);
 
@@ -571,8 +574,9 @@ export default function Dashboard() {
     if (metarHourKeyFromReportText(statusData.reportText) === metarPendingHourKey) {
       setMetarPendingHourKey(null);
       setMetarPendingSinceMs(null);
+      void refetchMetarHistory();
     }
-  }, [metarPendingHourKey, statusData?.reportText]);
+  }, [metarPendingHourKey, statusData?.reportText, refetchMetarHistory]);
 
   useEffect(() => {
     if (
@@ -581,8 +585,9 @@ export default function Dashboard() {
     ) {
       setSynopPendingHourKey(null);
       setSynopPendingSinceMs(null);
+      void refetchSynopHistory();
     }
-  }, [synopPendingHourKey, synopHistoryData]);
+  }, [synopPendingHourKey, synopHistoryData, refetchSynopHistory]);
 
   const historySlots = useMemo(() => getLast24HourSlots(utcNow), [utcNow]);
   const synopSlots = useMemo(() => getSynop24hPublicationSlots(utcNow), [utcNow]);
@@ -1067,13 +1072,20 @@ export default function Dashboard() {
   }, [icao]);
 
   useEffect(() => {
-    if (!isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale) {
-      const tick = () => playBeep(0.2, 880);
-      tick();
-      const timer = window.setInterval(tick, 10_000);
-      return () => window.clearInterval(timer);
+    const active = !isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale;
+    if (active && !beepActiveRef.current) {
+      beepActiveRef.current = true;
+      playBeep(0.2, 880);
+    } else if (!active) {
+      beepActiveRef.current = false;
     }
   }, [isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, playBeep]);
+
+  useEffect(() => {
+    if (!isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale && nextCheck === 0) {
+      playBeep(0.2, 880);
+    }
+  }, [nextCheck, isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, playBeep]);
 
   useEffect(() => {
     const topMessage = list.length > 0 ? list[0].mensagem : "";
