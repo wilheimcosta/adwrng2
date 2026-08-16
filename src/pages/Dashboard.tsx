@@ -423,7 +423,7 @@ export default function Dashboard() {
     },
     enabled: /^[A-Z]{4}$/.test(icao),
     staleTime: 30 * 1000,
-    refetchInterval: metarPollFast ? 10_000 : 30_000,
+    refetchInterval: 10_000,
     refetchIntervalInBackground: true,
   });
 
@@ -442,7 +442,7 @@ export default function Dashboard() {
     },
     enabled: /^[A-Z]{4}$/.test(icao),
     staleTime: 30 * 1000,
-    refetchInterval: synopPollFast ? 10_000 : 30_000,
+    refetchInterval: 10_000,
     refetchIntervalInBackground: true,
   });
 
@@ -566,8 +566,9 @@ export default function Dashboard() {
       setMetarPendingHourKey(null);
       setMetarPendingSinceMs(null);
       void refetch();
+      void refetchMetarHistory();
     }
-  }, [metarPendingHourKey, metarHistoryData, refetch]);
+  }, [metarPendingHourKey, metarHistoryData, refetch, refetchMetarHistory]);
 
   useEffect(() => {
     if (metarPendingHourKey === null || !statusData?.reportText) return;
@@ -1034,15 +1035,13 @@ export default function Dashboard() {
     const scheduleHourlyRefetch = () => {
       const delay = getMsUntilNextUtcHour(new Date());
       timeoutId = window.setTimeout(async () => {
-        if (!isHistoryView) {
-          await Promise.all([
-            refetch(),
-            refetchMetarHistory(),
-            refetchSynopHistory(),
-            refetchAisweb(),
-          ]);
-          setNextCheck(activeIntervalSeconds);
-        }
+        await Promise.all([
+          refetch(),
+          refetchMetarHistory(),
+          refetchSynopHistory(),
+          refetchAisweb(),
+        ]);
+        setNextCheck(activeIntervalSeconds);
         scheduleHourlyRefetch();
       }, delay);
     };
@@ -1054,7 +1053,6 @@ export default function Dashboard() {
       }
     };
   }, [
-    isHistoryView,
     refetch,
     refetchAisweb,
     refetchMetarHistory,
