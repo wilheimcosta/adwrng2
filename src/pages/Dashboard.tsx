@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BellRing,
@@ -317,6 +317,7 @@ export default function Dashboard() {
   const synopPendingMs = synopPendingSinceMs === null ? 0 : Date.now() - synopPendingSinceMs;
   const metarPollFast = metarPendingHourKey !== null && metarPendingMs <= OPMET_ALERT_MAX_MS;
   const synopPollFast = synopPendingHourKey !== null && synopPendingMs <= OPMET_ALERT_MAX_MS;
+  const activeIntervalSeconds = metarPollFast || synopPollFast ? 10 : CHECK_INTERVAL_SECONDS;
 
   const isHistoryView =
     location.pathname === "/" &&
@@ -344,22 +345,26 @@ export default function Dashboard() {
   });
 
   const flightRule = mapFlightRuleFromFlag(statusData?.flag ?? null);
-  const list: DashboardWarning[] = statusData?.hasAdWarning
-    ? [
-        {
-          mensagem:
-            statusData.warningText ??
-            statusData.reportText ??
-            "Active aerodrome warning.",
-        },
-      ]
-    : [];
+  const list: DashboardWarning[] = useMemo(
+    () =>
+      statusData?.hasAdWarning
+        ? [
+            {
+              mensagem:
+                statusData.warningText ??
+                statusData.reportText ??
+                "Active aerodrome warning.",
+            },
+          ]
+        : [],
+    [statusData?.hasAdWarning, statusData?.warningText, statusData?.reportText],
+  );
 
   const countdownDisplay = `${Math.floor(nextCheck / 60)
     .toString()
     .padStart(2, "0")}:${(nextCheck % 60).toString().padStart(2, "0")}`;
   const ringOffset =
-    CIRCUMFERENCE - (nextCheck / CHECK_INTERVAL_SECONDS) * CIRCUMFERENCE;
+    CIRCUMFERENCE - (nextCheck / activeIntervalSeconds) * CIRCUMFERENCE;
 
   const reportType = useMemo(() => {
     const report = statusData?.reportText ?? "";
@@ -460,9 +465,6 @@ export default function Dashboard() {
 
   const reportLine = useMemo(() => {
     const report = statusData?.reportText ?? "";
-    const translatedUnavailable = translateUnavailableMessage(report, "METAR");
-    if (translatedUnavailable) return translatedUnavailable;
-
     const lines = report
       .split(/\r?\n/)
       .map((l) => l.trim())
@@ -472,21 +474,26 @@ export default function Dashboard() {
       lines[0] ??
       "--";
 
-    if (latestMetarMessage && /^(METAR|SPECI)\b/i.test(statusLine)) {
+    if (latestMetarMessage) {
       const statusMatch = statusLine.toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
-      if (!statusMatch) return statusLine;
-      const statusNominal = resolveUtcDate(
-        Number(statusMatch[1]),
-        Number(statusMatch[2]),
-        Number(statusMatch[3]),
-        latestMetarMessage.nominal,
-      );
-      if (latestMetarMessage.nominal.getTime() > statusNominal.getTime()) {
+      if (statusMatch) {
+        const statusNominal = resolveUtcDate(
+          Number(statusMatch[1]),
+          Number(statusMatch[2]),
+          Number(statusMatch[3]),
+          latestMetarMessage.nominal,
+        );
+        if (latestMetarMessage.nominal.getTime() > statusNominal.getTime()) {
+          return latestMetarMessage.mens;
+        }
+        return statusLine;
+      }
+      if (Date.now() - latestMetarMessage.nominal.getTime() < 3 * 60 * 60 * 1000) {
         return latestMetarMessage.mens;
       }
-      return statusLine;
+      return translateUnavailableMessage(report, "METAR") ?? statusLine;
     }
-    return statusLine;
+    return translateUnavailableMessage(report, "METAR") ?? statusLine;
   }, [statusData?.reportText, latestMetarMessage]);
 
   const isMetarDelayed = useMemo(() => {
@@ -801,7 +808,7 @@ export default function Dashboard() {
 
   /* ── Audio helpers ── */
 
-  const initAudio = () => {
+  const initAudio = useCallback(() => {
     if (!audioCtxRef.current) {
       const Ctor =
         window.AudioContext ||
@@ -817,9 +824,9 @@ export default function Dashboard() {
         .catch(() => setAudioBlocked(true));
     }
     return audioCtxRef.current;
-  };
+  }, []);
 
-  const playBeep = (duration = 0.2, freq = 880) => {
+  const playBeep = useCallback((duration = 0.2, freq = 880) => {
     const ctx = initAudio();
     if (!ctx) return;
     if (ctx.state === "suspended") {
@@ -846,7 +853,7 @@ export default function Dashboard() {
     } catch {
       /* keep monitoring even without audio */
     }
-  };
+  }, [initAudio]);
 
   const stopAlarm = () => {
     showAlarmRef.current = false;
@@ -972,7 +979,7 @@ export default function Dashboard() {
     window.setTimeout(() => URL.revokeObjectURL(url), 30000);
   };
 
-  const triggerAlarm = () => {
+  const triggerAlarm = useCallback(() => {
     if (!audioEnabled) return;
     showAlarmRef.current = true;
     setShowAlarmOverlay(true);
@@ -987,7 +994,7 @@ export default function Dashboard() {
       alarmTimeoutRef.current = null;
     }
     playLoop();
-  };
+  }, [audioEnabled, playBeep]);
 
   /* ── Timers & effects ── */
 
@@ -1008,9 +1015,13 @@ export default function Dashboard() {
     if (nextCheck !== 0) return;
     (async () => {
       await refetch();
-      setNextCheck(CHECK_INTERVAL_SECONDS);
+      setNextCheck(activeIntervalSeconds);
     })();
-  }, [nextCheck, refetch]);
+  }, [nextCheck, refetch, activeIntervalSeconds]);
+
+  useEffect(() => {
+    setNextCheck((p) => (p > activeIntervalSeconds ? activeIntervalSeconds : p));
+  }, [activeIntervalSeconds]);
 
   useEffect(() => {
     let timeoutId: number | null = null;
@@ -1025,7 +1036,7 @@ export default function Dashboard() {
             refetchSynopHistory(),
             refetchAisweb(),
           ]);
-          setNextCheck(CHECK_INTERVAL_SECONDS);
+          setNextCheck(activeIntervalSeconds);
         }
         scheduleHourlyRefetch();
       }, delay);
@@ -1043,6 +1054,7 @@ export default function Dashboard() {
     refetchAisweb,
     refetchMetarHistory,
     refetchSynopHistory,
+    activeIntervalSeconds,
   ]);
 
   useEffect(() => {
@@ -1061,7 +1073,7 @@ export default function Dashboard() {
       const timer = window.setInterval(tick, 10_000);
       return () => window.clearInterval(timer);
     }
-  }, [isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale]);
+  }, [isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, playBeep]);
 
   useEffect(() => {
     const topMessage = list.length > 0 ? list[0].mensagem : "";
@@ -1073,7 +1085,7 @@ export default function Dashboard() {
       lastMsgHashRef.current = topMessage;
       triggerAlarm();
     }
-  }, [list]);
+  }, [list, triggerAlarm]);
 
   useEffect(() => {
     const unlock = () => {

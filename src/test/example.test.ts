@@ -162,4 +162,20 @@ describe("OPMET watch helpers", () => {
     expect(isPendingAlertStale(1000, 1000 + 30_001, 30_000)).toBe(true);
     expect(isPendingAlertStale(1000, 1000 + 30_000, 30_000)).toBe(false);
   });
+
+  it("matches the target hour METAR even when published as SPECI", () => {
+    const items = [
+      metar("SPECI SBMQ 111500Z 26012KT 9999 SCT025", "2026-08-11 14:55:00"),
+    ];
+    expect(hasMetarForHour(items, "2026081115")).toBe(true);
+    expect(hasMetarForHour(items, "2026081116")).toBe(false);
+  });
+
+  it("matches SYNOP by the observation hour in the message when validity is the publication time", () => {
+    const items = [
+      { mens: "AAXX 11154 82098 11160 22200 2//// ///// 333 55399", validade_inicial: "2026-08-11 14:55:00" },
+    ];
+    expect(hasSynopForHour(items, "2026081115")).toBe(true);
+    expect(hasSynopForHour(items, "2026081116")).toBe(false);
+  });
 });

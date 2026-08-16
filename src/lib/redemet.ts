@@ -62,8 +62,8 @@ function normalizeText(input: string) {
 }
 
 export function isAerodromeWarning(alert: RedemetAlert): boolean {
-  const rawMsg = (alert as any).mensagem ?? (alert as any).mens ?? "";
-  const rawTipo = (alert as any).tipo ?? "";
+  const rawMsg = String(alert.mensagem ?? alert.mens ?? "");
+  const rawTipo = String(alert.tipo ?? "");
 
   const tipo = normalizeText(String(rawTipo));
   const msg = normalizeText(String(rawMsg));
@@ -346,7 +346,7 @@ export async function fetchAerodromeStatusDetails(icao: string): Promise<Aerodro
       const warningPayload = await warningResponse.json();
       const warningRows = extractAlertRows(warningPayload);
       const matchedWarning = warningRows
-        .map((row) => String((row as any).mensagem ?? (row as any).mens ?? "").trim())
+        .map((row) => String(row.mensagem ?? row.mens ?? "").trim())
         .find((text) => {
           if (!text.toUpperCase().includes(station)) return false;
           return isAdWarningActiveAt(text, nowUtc);
@@ -523,10 +523,21 @@ export function nextSynopticHourDate(from: Date): Date {
   return next;
 }
 
+function getSynopObservationHourUtc(item: SynopHistoryItem): Date | null {
+  const ref = parseUtcDate(item.validade_inicial);
+  if (!ref) return null;
+  const match = String(item.mens ?? "").toUpperCase().match(/\bAAXX\s+(\d{2})(\d{2})/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const hour = Number(match[2]);
+  if ([day, hour].some((v) => Number.isNaN(v))) return null;
+  return resolveDayHourMinuteWithReference(day, hour, 0, ref);
+}
+
 export function hasMetarForHour(items: MetarHistoryItem[], targetUtcHourKey: string): boolean {
   return items.some((item) => {
     const upper = String(item.mens ?? "").toUpperCase().trim();
-    if (!/^METAR\b/.test(upper)) return false;
+    if (!/^(METAR|SPECI)\b/.test(upper)) return false;
     const nominal = getMessageNominalUtc(item);
     return nominal !== null && toUtcHourKey(nominal) === targetUtcHourKey;
   });
@@ -535,7 +546,9 @@ export function hasMetarForHour(items: MetarHistoryItem[], targetUtcHourKey: str
 export function hasSynopForHour(items: SynopHistoryItem[], targetUtcHourKey: string): boolean {
   return items.some((item) => {
     const parsed = parseUtcDate(item.validade_inicial);
-    return parsed !== null && toUtcHourKey(parsed) === targetUtcHourKey;
+    if (parsed !== null && toUtcHourKey(parsed) === targetUtcHourKey) return true;
+    const observation = getSynopObservationHourUtc(item);
+    return observation !== null && toUtcHourKey(observation) === targetUtcHourKey;
   });
 }
 
