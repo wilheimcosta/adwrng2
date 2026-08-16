@@ -64,7 +64,7 @@ export async function fetchWithTimeout(url: string, init: RequestInit = {}, time
 
 export function utcHourTimestamp(hoursAgo = 0): string {
   const date = new Date();
-  if (hoursAgo > 0) {
+  if (hoursAgo !== 0) {
     date.setUTCHours(date.getUTCHours() - hoursAgo);
   }
   const year = date.getUTCFullYear();

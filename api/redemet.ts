@@ -24,12 +24,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   else if (resource === "metar" && isIcao(icao)) {
     path = `/mensagens/metar/${icao}`;
     params.set("data_ini", utcHourTimestamp(24));
-    params.set("data_fim", utcHourTimestamp());
+    params.set("data_fim", utcHourTimestamp(-1));
   } else if (resource === "synop" && /^\d{5}$/.test(wmo)) {
     path = "/mensagens/synop";
     params.set("estacao", wmo);
     params.set("data_ini", utcHourTimestamp(24));
-    params.set("data_fim", utcHourTimestamp());
+    params.set("data_fim", utcHourTimestamp(-1));
   } else {
     return sendJson(response, 400, { error: "Parâmetros de consulta inválidos." });
   }
