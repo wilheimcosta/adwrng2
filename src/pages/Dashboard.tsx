@@ -590,8 +590,37 @@ export default function Dashboard() {
     }
   }, [synopPendingHourKey, synopHistoryData, refetchSynopHistory]);
 
-  const historySlots = useMemo(() => getLast24HourSlots(utcNow), [utcNow]);
-  const synopSlots = useMemo(() => getSynop24hPublicationSlots(utcNow), [utcNow]);
+  const historySlots = useMemo(() => {
+    const slots = getLast24HourSlots(utcNow);
+    const nextHour = new Date(utcNow);
+    nextHour.setUTCMinutes(0, 0, 0);
+    nextHour.setUTCHours(nextHour.getUTCHours() + 1);
+    const nextKey = toUtcHourKey(nextHour);
+    const hasNextHourMetar = (metarHistoryData ?? []).some((item) => {
+      const upper = String(item.mens ?? "").toUpperCase();
+      if (!/^METAR\b/.test(upper)) return false;
+      const nominal = getMessageNominalUtc(item);
+      return nominal !== null && toUtcHourKey(nominal) === nextKey;
+    });
+    if (hasNextHourMetar) {
+      slots.push({ key: nextKey, label: formatUtcHourLabel(nextHour) });
+    }
+    return slots;
+  }, [utcNow, metarHistoryData]);
+
+  const synopSlots = useMemo(() => {
+    const slots = getSynop24hPublicationSlots(utcNow);
+    const nextSynop = nextSynopticHourDate(utcNow);
+    const nextKey = toUtcHourKey(nextSynop);
+    const hasNextSynop = (synopHistoryData ?? []).some((item) => {
+      const parsed = parseUtcDate(item.validade_inicial);
+      return parsed !== null && toUtcHourKey(parsed) === nextKey;
+    });
+    if (hasNextSynop) {
+      slots.push({ key: nextKey, label: formatUtcHourLabel(nextSynop) });
+    }
+    return slots;
+  }, [utcNow, synopHistoryData]);
 
   const metarHourlyRows = useMemo(() => {
     const normalized = (metarHistoryData ?? [])
