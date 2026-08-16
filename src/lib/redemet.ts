@@ -459,3 +459,90 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
     return { data: [], error: formatNetworkError(error, "Falha ao consultar histórico SYNOP.") };
   }
 }
+
+export function parseUtcDate(dateTime: string): Date | null {
+  const value = String(dateTime ?? "").trim();
+  if (!value) return null;
+  const parsed = new Date(value.replace(" ", "T") + "Z");
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function resolveDayHourMinuteWithReference(
+  day: number,
+  hour: number,
+  minute: number,
+  reference: Date,
+): Date {
+  const y = reference.getUTCFullYear();
+  const m = reference.getUTCMonth();
+  const candidate = new Date(Date.UTC(y, m, day, hour, minute, 0, 0));
+  const diffDays = Math.round((candidate.getTime() - reference.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays > 20) return new Date(Date.UTC(y, m - 1, day, hour, minute, 0, 0));
+  if (diffDays < -20) return new Date(Date.UTC(y, m + 1, day, hour, minute, 0, 0));
+  return candidate;
+}
+
+export function getMessageNominalUtc(item: MetarHistoryItem): Date | null {
+  const ref =
+    parseUtcDate(item.validade_inicial) ??
+    parseUtcDate(item.recebimento) ??
+    new Date();
+
+  const match = String(item.mens ?? "").toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
+  if (!match) return parseUtcDate(item.validade_inicial) ?? null;
+
+  const day = Number(match[1]);
+  const hour = Number(match[2]);
+  const minute = Number(match[3]);
+  if ([day, hour, minute].some((v) => Number.isNaN(v))) {
+    return parseUtcDate(item.validade_inicial) ?? null;
+  }
+  return resolveDayHourMinuteWithReference(day, hour, minute, ref);
+}
+
+export function toUtcHourKey(date: Date): string {
+  return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}${String(date.getUTCHours()).padStart(2, "0")}`;
+}
+
+export function isMetarWatchMinute(minuteUtc: number): boolean {
+  return minuteUtc >= 55 && minuteUtc < 60;
+}
+
+export function isSynopticPublicationHour(hourUtc: number): boolean {
+  return hourUtc >= 0 && hourUtc <= 23 && hourUtc % 3 === 0;
+}
+
+export function nextSynopticHourDate(from: Date): Date {
+  const next = new Date(
+    Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), from.getUTCHours(), 0, 0, 0),
+  );
+  next.setUTCHours(next.getUTCHours() + 1);
+  while (!isSynopticPublicationHour(next.getUTCHours())) {
+    next.setUTCHours(next.getUTCHours() + 1);
+  }
+  return next;
+}
+
+export function hasMetarForHour(items: MetarHistoryItem[], targetUtcHourKey: string): boolean {
+  return items.some((item) => {
+    const upper = String(item.mens ?? "").toUpperCase().trim();
+    if (!/^METAR\b/.test(upper)) return false;
+    const nominal = getMessageNominalUtc(item);
+    return nominal !== null && toUtcHourKey(nominal) === targetUtcHourKey;
+  });
+}
+
+export function hasSynopForHour(items: SynopHistoryItem[], targetUtcHourKey: string): boolean {
+  return items.some((item) => {
+    const parsed = parseUtcDate(item.validade_inicial);
+    return parsed !== null && toUtcHourKey(parsed) === targetUtcHourKey;
+  });
+}
+
+export function isPendingAlertStale(
+  pendingSinceMs: number | null,
+  nowMs: number,
+  maxMs: number,
+): boolean {
+  return pendingSinceMs !== null && nowMs - pendingSinceMs > maxMs;
+}

@@ -23,12 +23,22 @@ import {
   fetchAiswebAerodromes,
   fetchMetarHistory24h,
   fetchSynopHistory24h,
+  getMessageNominalUtc,
+  hasMetarForHour,
+  hasSynopForHour,
+  isMetarWatchMinute,
+  isPendingAlertStale,
   mapFlightRuleFromFlag,
+  nextSynopticHourDate,
+  parseUtcDate,
+  toUtcHourKey,
   type MetarHistoryItem,
   type SynopHistoryItem,
 } from "@/lib/redemet";
 
 const CHECK_INTERVAL_SECONDS = 30;
+const OPMET_ALERT_MAX_MS = 30 * 60 * 1000;
+const OPMET_DATA_FRESH_MS = 45 * 1000;
 const CIRCLE_RADIUS = 18;
 const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
@@ -162,50 +172,6 @@ function flightRuleConfig(rule: "VFR" | "IFR" | "LIFR") {
     glow: "shadow-[0_0_16px_hsl(0_72%_55%/0.15)]",
     label: "LIFR",
   };
-}
-
-function parseUtcDate(dateTime: string): Date | null {
-  const value = String(dateTime ?? "").trim();
-  if (!value) return null;
-  const parsed = new Date(value.replace(" ", "T") + "Z");
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function resolveDayHourMinuteWithReference(
-  day: number,
-  hour: number,
-  minute: number,
-  reference: Date,
-): Date {
-  const y = reference.getUTCFullYear();
-  const m = reference.getUTCMonth();
-  const candidate = new Date(Date.UTC(y, m, day, hour, minute, 0, 0));
-  const diffDays = Math.round((candidate.getTime() - reference.getTime()) / (24 * 60 * 60 * 1000));
-  if (diffDays > 20) return new Date(Date.UTC(y, m - 1, day, hour, minute, 0, 0));
-  if (diffDays < -20) return new Date(Date.UTC(y, m + 1, day, hour, minute, 0, 0));
-  return candidate;
-}
-
-function getMessageNominalUtc(item: MetarHistoryItem): Date | null {
-  const ref =
-    parseUtcDate(item.validade_inicial) ??
-    parseUtcDate(item.recebimento) ??
-    new Date();
-
-  const match = String(item.mens ?? "").toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
-  if (!match) return parseUtcDate(item.validade_inicial) ?? null;
-
-  const day = Number(match[1]);
-  const hour = Number(match[2]);
-  const minute = Number(match[3]);
-  if ([day, hour, minute].some((v) => Number.isNaN(v))) {
-    return parseUtcDate(item.validade_inicial) ?? null;
-  }
-  return resolveDayHourMinuteWithReference(day, hour, minute, ref);
-}
-
-function toUtcHourKey(date: Date): string {
-  return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}${String(date.getUTCHours()).padStart(2, "0")}`;
 }
 
 function utcHourKeyToMs(key: string): number {
@@ -342,13 +308,15 @@ export default function Dashboard() {
   const [showAlarmOverlay, setShowAlarmOverlay] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [showGapDetails, setShowGapDetails] = useState(false);
-  const [historySnapshot, setHistorySnapshot] = useState<{
-    metarRows: MetarRow[];
-    synopRows: SynopRow[];
-    summary: HistorySummary;
-    capturedAt: string;
-  } | null>(null);
-  const [historyReloading, setHistoryReloading] = useState(false);
+  const [metarPendingHourKey, setMetarPendingHourKey] = useState<string | null>(null);
+  const [synopPendingHourKey, setSynopPendingHourKey] = useState<string | null>(null);
+  const [metarPendingSinceMs, setMetarPendingSinceMs] = useState<number | null>(null);
+  const [synopPendingSinceMs, setSynopPendingSinceMs] = useState<number | null>(null);
+
+  const metarPendingMs = metarPendingSinceMs === null ? 0 : Date.now() - metarPendingSinceMs;
+  const synopPendingMs = synopPendingSinceMs === null ? 0 : Date.now() - synopPendingSinceMs;
+  const metarPollFast = metarPendingHourKey !== null && metarPendingMs <= OPMET_ALERT_MAX_MS;
+  const synopPollFast = synopPendingHourKey !== null && synopPendingMs <= OPMET_ALERT_MAX_MS;
 
   const isHistoryView =
     location.pathname === "/" &&
@@ -401,22 +369,6 @@ export default function Dashboard() {
   }, [statusData?.reportText]);
   const metarPanelTitle = reportType === "SPECI" ? "SPECI" : "METAR";
 
-  const reportLine = useMemo(() => {
-    const report = statusData?.reportText ?? "";
-    const translatedUnavailable = translateUnavailableMessage(report, "METAR");
-    if (translatedUnavailable) return translatedUnavailable;
-
-    const lines = report
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    return (
-      lines.find((item) => /\b(METAR|SPECI)\b/i.test(item)) ??
-      lines[0] ??
-      "--"
-    );
-  }, [statusData?.reportText]);
-
   const tafLine = useMemo(() => {
     const report = statusData?.reportText ?? "";
     const translatedUnavailable = translateUnavailableMessage(report, "TAF");
@@ -428,21 +380,6 @@ export default function Dashboard() {
       ? fullMatch[0].trim()
       : `TAF not available for ${icao.toUpperCase()}`;
   }, [statusData?.reportText, icao]);
-
-  const isMetarDelayed = useMemo(() => {
-    const report = statusData?.reportText ?? "";
-    const match = report.match(/\bMETAR\s+[A-Z]{4}\s+(\d{2})(\d{2})(\d{2})Z\b/i);
-    if (!match) return false;
-
-    const metarDay = Number(match[1]);
-    const metarHour = Number(match[2]);
-    if ([metarDay, metarHour].some(Number.isNaN)) return false;
-
-    return (
-      metarDay !== utcNow.getUTCDate() ||
-      metarHour !== utcNow.getUTCHours()
-    );
-  }, [statusData?.reportText, utcNow]);
 
   const warningIcaos = useMemo(
     () => extractIcaosFromAdWarning(statusData?.warningText ?? ""),
@@ -469,6 +406,7 @@ export default function Dashboard() {
     isFetching: isFetchingMetarHistory,
     error: metarHistoryError,
     refetch: refetchMetarHistory,
+    dataUpdatedAt: metarDataUpdatedAt,
   } = useQuery({
     queryKey: ["metar-history-24h", icao],
     queryFn: async () => {
@@ -478,8 +416,8 @@ export default function Dashboard() {
     },
     enabled: /^[A-Z]{4}$/.test(icao),
     staleTime: 30 * 1000,
-    refetchInterval: isHistoryView ? false : 30 * 1000,
-    refetchIntervalInBackground: !isHistoryView,
+    refetchInterval: metarPollFast ? 10_000 : 30_000,
+    refetchIntervalInBackground: true,
   });
 
   const {
@@ -487,6 +425,7 @@ export default function Dashboard() {
     isFetching: isFetchingSynopHistory,
     error: synopHistoryError,
     refetch: refetchSynopHistory,
+    dataUpdatedAt: synopDataUpdatedAt,
   } = useQuery({
     queryKey: ["synop-history-24h", icao],
     queryFn: async () => {
@@ -496,9 +435,147 @@ export default function Dashboard() {
     },
     enabled: /^[A-Z]{4}$/.test(icao),
     staleTime: 30 * 1000,
-    refetchInterval: isHistoryView ? false : 30 * 1000,
-    refetchIntervalInBackground: !isHistoryView,
+    refetchInterval: synopPollFast ? 10_000 : 30_000,
+    refetchIntervalInBackground: true,
   });
+
+  useEffect(() => {
+    if (!isHistoryView) return;
+    void refetchMetarHistory();
+    void refetchSynopHistory();
+  }, [isHistoryView, refetchMetarHistory, refetchSynopHistory]);
+
+  const latestMetarMessage = useMemo(() => {
+    let best: { nominal: Date; mens: string } | null = null;
+    for (const item of metarHistoryData ?? []) {
+      const upper = String(item.mens ?? "").toUpperCase();
+      if (!/^(METAR|SPECI)\b/.test(upper)) continue;
+      const nominal = getMessageNominalUtc(item);
+      if (nominal && (!best || nominal.getTime() > best.nominal.getTime())) {
+        best = { nominal, mens: item.mens };
+      }
+    }
+    return best;
+  }, [metarHistoryData]);
+
+  const reportLine = useMemo(() => {
+    const report = statusData?.reportText ?? "";
+    const translatedUnavailable = translateUnavailableMessage(report, "METAR");
+    if (translatedUnavailable) return translatedUnavailable;
+
+    const lines = report
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const statusLine =
+      lines.find((item) => /\b(METAR|SPECI)\b/i.test(item)) ??
+      lines[0] ??
+      "--";
+
+    if (latestMetarMessage && /^(METAR|SPECI)\b/i.test(statusLine)) {
+      const statusMatch = statusLine.toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
+      if (!statusMatch) return statusLine;
+      const statusNominal = resolveUtcDate(
+        Number(statusMatch[1]),
+        Number(statusMatch[2]),
+        Number(statusMatch[3]),
+        latestMetarMessage.nominal,
+      );
+      if (latestMetarMessage.nominal.getTime() > statusNominal.getTime()) {
+        return latestMetarMessage.mens;
+      }
+      return statusLine;
+    }
+    return statusLine;
+  }, [statusData?.reportText, latestMetarMessage]);
+
+  const isMetarDelayed = useMemo(() => {
+    const report = reportLine ?? "";
+    const match = report.match(/\bMETAR\s+[A-Z]{4}\s+(\d{2})(\d{2})(\d{2})Z\b/i);
+    if (!match) return false;
+
+    const metarDay = Number(match[1]);
+    const metarHour = Number(match[2]);
+    if ([metarDay, metarHour].some(Number.isNaN)) return false;
+
+    return (
+      metarDay !== utcNow.getUTCDate() ||
+      metarHour !== utcNow.getUTCHours()
+    );
+  }, [reportLine, utcNow]);
+
+  const isMetarWatchWindow = isMetarWatchMinute(utcNow.getUTCMinutes());
+
+  const nextHourUtc = useMemo(() => {
+    const next = new Date(utcNow);
+    next.setUTCMinutes(0, 0, 0);
+    next.setUTCHours(next.getUTCHours() + 1);
+    return next;
+  }, [utcNow]);
+  const nextHourKey = toUtcHourKey(nextHourUtc);
+
+  const synopTargetDate = useMemo(() => nextSynopticHourDate(utcNow), [utcNow]);
+  const synopTargetKey = toUtcHourKey(synopTargetDate);
+  const isSynopWatchWindow =
+    isMetarWatchWindow &&
+    synopTargetDate.getTime() - utcNow.getTime() <= 5 * 60 * 1000;
+
+  const metarAlertActive =
+    metarPendingHourKey !== null &&
+    !hasMetarForHour(metarHistoryData ?? [], metarPendingHourKey);
+  const synopAlertActive =
+    synopPendingHourKey !== null &&
+    !hasSynopForHour(synopHistoryData ?? [], synopPendingHourKey);
+  const opmetAlertActive = metarAlertActive || synopAlertActive;
+  const metarAlertStale =
+    metarAlertActive && isPendingAlertStale(metarPendingSinceMs, Date.now(), OPMET_ALERT_MAX_MS);
+  const synopAlertStale =
+    synopAlertActive && isPendingAlertStale(synopPendingSinceMs, Date.now(), OPMET_ALERT_MAX_MS);
+
+  useEffect(() => {
+    if (
+      metarPendingHourKey === null &&
+      isMetarWatchWindow &&
+      Date.now() - metarDataUpdatedAt < OPMET_DATA_FRESH_MS &&
+      !hasMetarForHour(metarHistoryData ?? [], nextHourKey)
+    ) {
+      setMetarPendingHourKey(nextHourKey);
+      setMetarPendingSinceMs(Date.now());
+    }
+  }, [isMetarWatchWindow, metarPendingHourKey, metarHistoryData, nextHourKey, metarDataUpdatedAt]);
+
+  useEffect(() => {
+    if (
+      synopPendingHourKey === null &&
+      isSynopWatchWindow &&
+      Date.now() - synopDataUpdatedAt < OPMET_DATA_FRESH_MS &&
+      !hasSynopForHour(synopHistoryData ?? [], synopTargetKey)
+    ) {
+      setSynopPendingHourKey(synopTargetKey);
+      setSynopPendingSinceMs(Date.now());
+    }
+  }, [isSynopWatchWindow, synopPendingHourKey, synopHistoryData, synopTargetKey, synopDataUpdatedAt]);
+
+  useEffect(() => {
+    if (
+      metarPendingHourKey !== null &&
+      hasMetarForHour(metarHistoryData ?? [], metarPendingHourKey)
+    ) {
+      setMetarPendingHourKey(null);
+      setMetarPendingSinceMs(null);
+      void refetch();
+    }
+  }, [metarPendingHourKey, metarHistoryData, refetch]);
+
+  useEffect(() => {
+    if (
+      synopPendingHourKey !== null &&
+      hasSynopForHour(synopHistoryData ?? [], synopPendingHourKey)
+    ) {
+      setSynopPendingHourKey(null);
+      setSynopPendingSinceMs(null);
+    }
+  }, [synopPendingHourKey, synopHistoryData]);
 
   const historySlots = useMemo(() => getLast24HourSlots(utcNow), [utcNow]);
   const synopSlots = useMemo(() => getSynop24hPublicationSlots(utcNow), [utcNow]);
@@ -668,32 +745,6 @@ export default function Dashboard() {
       .map((row) => ({ source: "SYNOP", hour: row.hour, message: row.message }));
     return [...metarGaps, ...synopGaps];
   }, [metarHourlyRows, synopHourlyRows]);
-
-  const hasHistorySnapshot = Boolean(historySnapshot);
-  const historyViewMetarRows = historySnapshot?.metarRows ?? [];
-  const historyViewSynopRows = historySnapshot?.synopRows ?? [];
-  const historyViewSummary = historySnapshot?.summary ?? {
-    metarCount: 0,
-    speciCount: 0,
-    synopCount: 0,
-    missingCount: 0,
-    delayedCount: 0,
-    earlyCount: 0,
-  };
-  const historyViewHasGaps = historyViewSummary.missingCount > 0;
-
-  const refreshHistorySnapshot = async () => {
-    setHistoryReloading(true);
-    await Promise.all([refetchMetarHistory(), refetchSynopHistory()]);
-    const capturedAt = formatUtcDateTime(new Date());
-    setHistorySnapshot({
-      metarRows: [...metarHourlyRows],
-      synopRows: [...synopHourlyRows],
-      summary: { ...historySummary },
-      capturedAt,
-    });
-    setHistoryReloading(false);
-  };
 
 
   const decodedWarning = useMemo(() => {
@@ -996,9 +1047,21 @@ export default function Dashboard() {
 
   useEffect(() => {
     setNextCheck(CHECK_INTERVAL_SECONDS);
-    setHistorySnapshot(null);
     setShowGapDetails(false);
+    setMetarPendingHourKey(null);
+    setMetarPendingSinceMs(null);
+    setSynopPendingHourKey(null);
+    setSynopPendingSinceMs(null);
   }, [icao]);
+
+  useEffect(() => {
+    if (!isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale) {
+      const tick = () => playBeep(0.2, 880);
+      tick();
+      const timer = window.setInterval(tick, 10_000);
+      return () => window.clearInterval(timer);
+    }
+  }, [isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale]);
 
   useEffect(() => {
     const topMessage = list.length > 0 ? list[0].mensagem : "";
@@ -1276,6 +1339,47 @@ export default function Dashboard() {
 
       {!isHistoryView && (
         <>
+      {opmetAlertActive && (
+        <div className="space-y-2">
+          {metarAlertActive && (
+            <div className="card-neon border-amber-500/30 p-3 sm:p-4 flex items-start gap-3 animate-pulse-glow">
+              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold font-mono uppercase tracking-wider text-amber-300">
+                  METAR Not Updated
+                </p>
+                <p className="text-xs sm:text-sm font-mono text-amber-200/80 mt-1 leading-relaxed">
+                  METAR for{" "}
+                  {formatUtcHourLabel(new Date(utcHourKeyToMs(metarPendingHourKey ?? nextHourKey)))}{" "}
+                  UTC has not been updated in the OPMET database yet
+                  {metarAlertStale
+                    ? " — significantly delayed."
+                    : ". Checking every 10 seconds..."}
+                </p>
+              </div>
+            </div>
+          )}
+          {synopAlertActive && (
+            <div className="card-neon border-amber-500/30 p-3 sm:p-4 flex items-start gap-3 animate-pulse-glow">
+              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold font-mono uppercase tracking-wider text-amber-300">
+                  SYNOP Not Published
+                </p>
+                <p className="text-xs sm:text-sm font-mono text-amber-200/80 mt-1 leading-relaxed">
+                  SYNOP for{" "}
+                  {formatUtcHourLabel(new Date(utcHourKeyToMs(synopPendingHourKey ?? synopTargetKey)))}{" "}
+                  UTC has not been published in the OPMET database yet
+                  {synopAlertStale
+                    ? " — significantly delayed."
+                    : ". Checking every 10 seconds..."}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── METAR / TAF panels ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* METAR */}
@@ -1373,78 +1477,60 @@ export default function Dashboard() {
               History :: Last 24h
             </h3>
             <div className="flex items-center gap-2">
-              {historySnapshot?.capturedAt && (
+              {(metarDataUpdatedAt > 0 || synopDataUpdatedAt > 0) && (
                 <span className="text-[10px] sm:text-xs font-mono text-muted-foreground">
-                  Snapshot: {historySnapshot.capturedAt}
+                  Updated: {formatUtcDateTime(new Date(Math.max(metarDataUpdatedAt, synopDataUpdatedAt)))}
                 </span>
               )}
-              <Button
-                type="button"
-                size="sm"
-                onClick={refreshHistorySnapshot}
-                disabled={historyReloading}
-                className="h-7 px-2.5 text-[11px] font-mono uppercase tracking-wider border bg-primary/15 text-primary border-primary/35 disabled:opacity-60"
-              >
-                <RefreshCw className={`w-3 h-3 mr-1 ${historyReloading ? "animate-spin" : ""}`} />
-                History Reload
-              </Button>
               <span
                 className={`text-xs font-mono uppercase tracking-wider ${
-                  historyViewHasGaps ? "text-red-300" : "text-emerald-300"
+                  hasHistoryGaps ? "text-red-300" : "text-emerald-300"
                 }`}
               >
-                {historyViewHasGaps ? "Gaps Detected" : "No Gaps"}
+                {hasHistoryGaps ? "Gaps Detected" : "No Gaps"}
               </span>
             </div>
           </div>
 
-          {!hasHistorySnapshot && (
-            <div className="rounded-md border border-border/60 bg-muted/20 p-3">
-              <p className="text-xs sm:text-sm font-mono text-muted-foreground">
-                Click History Reload to update data.
-              </p>
-            </div>
-          )}
-
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="font-mono text-xs">
-              METAR: {historyViewSummary.metarCount}
+              METAR: {historySummary.metarCount}
             </Badge>
             <Badge variant="outline" className="font-mono text-xs">
-              SPECI: {historyViewSummary.speciCount}
+              SPECI: {historySummary.speciCount}
             </Badge>
             <Badge variant="outline" className="font-mono text-xs">
-              SYNOP: {historyViewSummary.synopCount}
+              SYNOP: {historySummary.synopCount}
             </Badge>
             <Badge
               variant="outline"
               className={`font-mono text-xs ${
-                historyViewSummary.missingCount > 0
+                historySummary.missingCount > 0
                   ? "bg-red-500/20 text-red-200 border-red-500/60"
                   : "text-emerald-300 border-emerald-500/35"
               }`}
             >
-              Missing: {historyViewSummary.missingCount}
+              Missing: {historySummary.missingCount}
             </Badge>
             <Badge
               variant="outline"
               className={`font-mono text-xs ${
-                historyViewSummary.delayedCount > 0
+                historySummary.delayedCount > 0
                   ? "bg-red-500/20 text-red-200 border-red-500/60"
                   : "text-muted-foreground"
               }`}
             >
-              Delayed: {historyViewSummary.delayedCount}
+              Delayed: {historySummary.delayedCount}
             </Badge>
             <Badge
               variant="outline"
               className={`font-mono text-xs ${
-                historyViewSummary.earlyCount > 0
+                historySummary.earlyCount > 0
                   ? "text-amber-300 border-amber-500/40"
                   : "text-muted-foreground"
               }`}
             >
-              Early: {historyViewSummary.earlyCount}
+              Early: {historySummary.earlyCount}
             </Badge>
           </div>
 
@@ -1465,7 +1551,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {hasHistorySnapshot && isFetchingMetarHistory && (
+                    {isFetchingMetarHistory && (
                       <tr>
                         <td colSpan={3} className="px-2 py-3 text-muted-foreground">
                           Loading METAR history...
@@ -1481,16 +1567,16 @@ export default function Dashboard() {
                         </td>
                       </tr>
                     )}
-                    {!hasHistorySnapshot && (
-                      <tr>
-                        <td colSpan={3} className="px-2 py-3 text-muted-foreground">
-                          Click History Reload to update data.
-                        </td>
-                      </tr>
-                    )}
-                    {hasHistorySnapshot && !isFetchingMetarHistory &&
-                      !metarHistoryError &&
-                      historyViewMetarRows.map((row, idx) => (
+                    {!metarHistoryError && !isFetchingMetarHistory &&
+                      metarHourlyRows.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="px-2 py-3 text-muted-foreground">
+                            No METAR data in the last 24h.
+                          </td>
+                        </tr>
+                      )}
+                    {!metarHistoryError &&
+                      metarHourlyRows.map((row, idx) => (
                         <tr key={`metar-${idx}`} className="border-b border-border/40 align-top">
                           <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
                             {row.hour}
@@ -1528,7 +1614,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {hasHistorySnapshot && isFetchingSynopHistory && (
+                    {isFetchingSynopHistory && (
                       <tr>
                         <td colSpan={2} className="px-2 py-3 text-muted-foreground">
                           Loading SYNOP history...
@@ -1544,16 +1630,16 @@ export default function Dashboard() {
                         </td>
                       </tr>
                     )}
-                    {!hasHistorySnapshot && (
-                      <tr>
-                        <td colSpan={2} className="px-2 py-3 text-muted-foreground">
-                          Click History Reload to update data.
-                        </td>
-                      </tr>
-                    )}
-                    {hasHistorySnapshot && !isFetchingSynopHistory &&
-                      !synopHistoryError &&
-                      historyViewSynopRows.map((row, idx) => (
+                    {!synopHistoryError && !isFetchingSynopHistory &&
+                      synopHourlyRows.length === 0 && (
+                        <tr>
+                          <td colSpan={2} className="px-2 py-3 text-muted-foreground">
+                            No SYNOP data in the last 24h.
+                          </td>
+                        </tr>
+                      )}
+                    {!synopHistoryError &&
+                      synopHourlyRows.map((row, idx) => (
                         <tr key={`synop-${idx}`} className="border-b border-border/40 align-top">
                           <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
                             {row.hour}
