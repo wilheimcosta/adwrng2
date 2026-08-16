@@ -180,6 +180,16 @@ describe("OPMET watch helpers", () => {
     expect(hasSynopForHour(items, "2026081116")).toBe(false);
   });
 
+  it("flags the next synoptic hour as available when its SYNOP was published early", () => {
+    const utcNow = new Date(Date.UTC(2026, 7, 11, 20, 56));
+    const nextKey = toUtcHourKey(nextSynopticHourDate(utcNow));
+    const items = [
+      { mens: "AAXX 11214 82098 11160 22200 2//// ///// 333 55399", validade_inicial: "2026-08-11 20:56:00" },
+    ];
+    expect(nextKey).toBe("2026081121");
+    expect(hasSynopForHour(items, nextKey)).toBe(true);
+  });
+
   it("extracts the METAR hour key from the aerodrome status text", () => {
     const text =
       "METAR SBMQ 160200Z 02007KT 9999 FEW023 28/24 Q1013=\n\n" +
