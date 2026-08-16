@@ -498,18 +498,9 @@ export default function Dashboard() {
   }, [statusData?.reportText, latestMetarMessage]);
 
   const isMetarDelayed = useMemo(() => {
-    const report = reportLine ?? "";
-    const match = report.match(/\bMETAR\s+[A-Z]{4}\s+(\d{2})(\d{2})(\d{2})Z\b/i);
-    if (!match) return false;
-
-    const metarDay = Number(match[1]);
-    const metarHour = Number(match[2]);
-    if ([metarDay, metarHour].some(Number.isNaN)) return false;
-
-    return (
-      metarDay !== utcNow.getUTCDate() ||
-      metarHour !== utcNow.getUTCHours()
-    );
+    const reportKey = reportLine ? metarHourKeyFromReportText(reportLine, utcNow) : null;
+    if (!reportKey) return false;
+    return reportKey < toUtcHourKey(utcNow);
   }, [reportLine, utcNow]);
 
   const isMetarWatchWindow = isMetarWatchMinute(utcNow.getUTCMinutes());
