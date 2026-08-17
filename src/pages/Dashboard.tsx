@@ -612,11 +612,7 @@ export default function Dashboard() {
     const slots = getSynop24hPublicationSlots(utcNow);
     const nextSynop = nextSynopticHourDate(utcNow);
     const nextKey = toUtcHourKey(nextSynop);
-    const hasNextSynop = (synopHistoryData ?? []).some((item) => {
-      const parsed = parseUtcDate(item.validade_inicial);
-      return parsed !== null && toUtcHourKey(parsed) === nextKey;
-    });
-    if (hasNextSynop) {
+    if (hasSynopForHour(synopHistoryData ?? [], nextKey)) {
       slots.push({ key: nextKey, label: formatUtcHourLabel(nextSynop) });
     }
     return slots;
@@ -723,6 +719,7 @@ export default function Dashboard() {
           isMissing: true,
           message: "SYNOP MESSAGE MISSING IN OPMET DATABASE",
           className: "text-red-400 font-bold",
+          sortTs: utcHourKeyToMs(slot.key),
         };
       }
       const ordered = [...items].sort((a, b) => {
@@ -739,8 +736,9 @@ export default function Dashboard() {
         isMissing: false,
         message: messages.join("\n"),
         className: "text-foreground",
+        sortTs: utcHourKeyToMs(slot.key),
       };
-    });
+    }).sort((a, b) => b.sortTs - a.sortTs);
   }, [synopHistoryData, synopSlots]);
 
   const hasHistoryGaps = useMemo(
