@@ -1389,9 +1389,16 @@ export default function Dashboard() {
       {!isHistoryView && (
         <>
       {opmetAlertActive && (
-        <div className="space-y-2">
+        <div className="fixed top-0 left-0 right-0 z-40 relative px-3 pt-3 pb-2 space-y-2">
+          <div
+            className="absolute inset-0 pointer-events-none opacity-40"
+            style={{
+              background: "radial-gradient(circle at top, hsl(0 72% 55% / 0.15), transparent 60%)",
+              animation: "pulse-glow 1.5s ease-in-out infinite",
+            }}
+          />
           {metarAlertActive && (
-            <div className="card-neon border-red-500/20 overflow-hidden shadow-[0_0_30px_hsl(0_72%_55%/0.06)]">
+            <div className="card-neon border-red-500/20 overflow-hidden shadow-[0_0_30px_hsl(0_72%_55%/0.15)]">
               <div className="h-0.5 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-r from-red-500/40 via-red-400 to-red-500/40" />
                 <div
