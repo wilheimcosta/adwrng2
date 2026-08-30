@@ -308,6 +308,7 @@ export default function Dashboard() {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [showAlarmOverlay, setShowAlarmOverlay] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [watchSilenced, setWatchSilenced] = useState(false);
   const [showGapDetails, setShowGapDetails] = useState(false);
   const [metarPendingHourKey, setMetarPendingHourKey] = useState<string | null>(null);
   const [synopPendingHourKey, setSynopPendingHourKey] = useState<string | null>(null);
@@ -898,6 +899,11 @@ export default function Dashboard() {
     }
   };
 
+  const handleWatchSilence = () => {
+    setWatchSilenced(true);
+    beepActiveRef.current = false;
+  };
+
   const handleAcknowledgeSilenceEmail = () => {
     stopAlarm();
 
@@ -1097,20 +1103,25 @@ export default function Dashboard() {
   }, [icao]);
 
   useEffect(() => {
-    const active = !isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale;
+    if (opmetAlertActive) return;
+    setWatchSilenced(false);
+  }, [opmetAlertActive]);
+
+  useEffect(() => {
+    const active = !isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale && !watchSilenced;
     if (active && !beepActiveRef.current) {
       beepActiveRef.current = true;
       playBeep(0.2, 880);
     } else if (!active) {
       beepActiveRef.current = false;
     }
-  }, [isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, playBeep]);
+  }, [isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, watchSilenced, playBeep]);
 
   useEffect(() => {
-    if (!isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale && nextCheck === 0) {
+    if (!isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale && !watchSilenced && nextCheck === 0) {
       playBeep(0.2, 880);
     }
-  }, [nextCheck, isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, playBeep]);
+  }, [nextCheck, isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, watchSilenced, playBeep]);
 
   useEffect(() => {
     const topMessage = list.length > 0 ? list[0].mensagem : "";
@@ -1388,7 +1399,7 @@ export default function Dashboard() {
 
       {!isHistoryView && (
         <>
-      {opmetAlertActive && (
+      {opmetAlertActive && !watchSilenced && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-xl p-4">
           <div
             className="absolute inset-0 pointer-events-none opacity-30"
@@ -1486,6 +1497,14 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
+
+            <Button
+              type="button"
+              onClick={handleWatchSilence}
+              className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
+            >
+              Silence
+            </Button>
           </div>
         </div>
       )}
