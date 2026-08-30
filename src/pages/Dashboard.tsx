@@ -1391,42 +1391,80 @@ export default function Dashboard() {
       {opmetAlertActive && (
         <div className="space-y-2">
           {metarAlertActive && (
-            <div className="card-neon border-amber-500/30 p-3 sm:p-4 flex items-start gap-3 animate-pulse-glow">
-              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-bold font-mono uppercase tracking-wider text-amber-300">
-                  METAR Not Updated
-                </p>
-                <p className="text-xs sm:text-sm font-mono text-amber-200/80 mt-1 leading-relaxed">
-                  METAR for{" "}
-                  {formatUtcHourLabel(new Date(utcHourKeyToMs(metarPendingHourKey ?? nextHourKey)))}{" "}
-                  UTC has not been updated in the OPMET database yet
-                  {metarAlertStale
-                    ? " — significantly delayed."
-                    : ". Checking every 10 seconds..."}
-                  {metarDataUpdatedAt > 0 &&
-                    ` · last OPMET data ${Math.max(0, Math.round((Date.now() - metarDataUpdatedAt) / 1000))}s ago`}
-                </p>
+            <div className="card-neon border-red-500/20 overflow-hidden shadow-[0_0_30px_hsl(0_72%_55%/0.06)]">
+              <div className="h-0.5 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-red-500/40 via-red-400 to-red-500/40" />
+                <div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                  style={{
+                    animation: "shimmer 2s linear infinite",
+                    backgroundSize: "200% 100%",
+                  }}
+                />
+              </div>
+              <div className="p-4 sm:p-5 flex flex-col lg:flex-row gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center border border-red-500/20 animate-pulse-glow">
+                    <AlertTriangle className="w-6 h-6 text-red-400" />
+                  </div>
+                </div>
+                <div className="flex-grow space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-base font-bold text-foreground uppercase tracking-wide font-mono">
+                      METAR Not Updated
+                    </h3>
+                    <Badge className="bg-red-500/15 text-red-400 border border-red-500/20 text-xs font-bold font-mono uppercase px-2.5">
+                      {metarAlertStale ? "DELAYED" : "NOT UPDATED"}
+                    </Badge>
+                  </div>
+                  <div className="bg-background/60 rounded-md p-3 sm:p-4 border-l-2 border-red-500/30 font-mono text-sm text-foreground/85 leading-relaxed whitespace-pre-wrap">
+                    METAR for{" "}
+                    {formatUtcHourLabel(new Date(utcHourKeyToMs(metarPendingHourKey ?? nextHourKey)))}{" "}
+                    UTC has not been updated in the OPMET database yet
+                    {metarAlertStale ? " — significantly delayed." : ". Checking every 10 seconds..."}
+                    {metarDataUpdatedAt > 0 &&
+                      ` · last OPMET data ${Math.max(0, Math.round((Date.now() - metarDataUpdatedAt) / 1000))}s ago`}
+                  </div>
+                </div>
               </div>
             </div>
           )}
           {synopAlertActive && (
-            <div className="card-neon border-amber-500/30 p-3 sm:p-4 flex items-start gap-3 animate-pulse-glow">
-              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-bold font-mono uppercase tracking-wider text-amber-300">
-                  SYNOP Not Published
-                </p>
-                <p className="text-xs sm:text-sm font-mono text-amber-200/80 mt-1 leading-relaxed">
-                  SYNOP for{" "}
-                  {formatUtcHourLabel(new Date(utcHourKeyToMs(synopPendingHourKey ?? synopTargetKey)))}{" "}
-                  UTC has not been published in the OPMET database yet
-                  {synopAlertStale
-                    ? " — significantly delayed."
-                    : ". Checking every 10 seconds..."}
-                  {synopDataUpdatedAt > 0 &&
-                    ` · last OPMET data ${Math.max(0, Math.round((Date.now() - synopDataUpdatedAt) / 1000))}s ago`}
-                </p>
+            <div className="card-neon border-red-500/20 overflow-hidden shadow-[0_0_30px_hsl(0_72%_55%/0.06)]">
+              <div className="h-0.5 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-red-500/40 via-red-400 to-red-500/40" />
+                <div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                  style={{
+                    animation: "shimmer 2s linear infinite",
+                    backgroundSize: "200% 100%",
+                  }}
+                />
+              </div>
+              <div className="p-4 sm:p-5 flex flex-col lg:flex-row gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center border border-red-500/20 animate-pulse-glow">
+                    <AlertTriangle className="w-6 h-6 text-red-400" />
+                  </div>
+                </div>
+                <div className="flex-grow space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-base font-bold text-foreground uppercase tracking-wide font-mono">
+                      SYNOP Not Updated
+                    </h3>
+                    <Badge className="bg-red-500/15 text-red-400 border border-red-500/20 text-xs font-bold font-mono uppercase px-2.5">
+                      {synopAlertStale ? "DELAYED" : "NOT UPDATED"}
+                    </Badge>
+                  </div>
+                  <div className="bg-background/60 rounded-md p-3 sm:p-4 border-l-2 border-red-500/30 font-mono text-sm text-foreground/85 leading-relaxed whitespace-pre-wrap">
+                    SYNOP for{" "}
+                    {formatUtcHourLabel(new Date(utcHourKeyToMs(synopPendingHourKey ?? synopTargetKey)))}{" "}
+                    UTC has not been published in the OPMET database yet
+                    {synopAlertStale ? " — significantly delayed." : ". Checking every 10 seconds..."}
+                    {synopDataUpdatedAt > 0 &&
+                      ` · last OPMET data ${Math.max(0, Math.round((Date.now() - synopDataUpdatedAt) / 1000))}s ago`}
+                  </div>
+                </div>
               </div>
             </div>
           )}
