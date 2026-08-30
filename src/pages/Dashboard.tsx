@@ -1524,6 +1524,18 @@ export default function Dashboard() {
               <Button
                 type="button"
                 size="sm"
+                onClick={() => setWatchSilenced(false)}
+                className={`h-7 px-2.5 text-[11px] font-mono uppercase tracking-wider border ${
+                  metarAlertActive
+                    ? "bg-amber-500/15 text-amber-300 border-amber-500/45 animate-pulse"
+                    : "bg-muted text-muted-foreground border-border/60"
+                }`}
+              >
+                UPD
+              </Button>
+              <Button
+                type="button"
+                size="sm"
                 onClick={() => setShowGapDetails((prev) => !prev)}
                 className={`h-7 px-2.5 text-[11px] font-mono uppercase tracking-wider border ${
                   hasHistoryGaps
