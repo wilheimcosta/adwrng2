@@ -308,6 +308,7 @@ export default function Dashboard() {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [showAlarmOverlay, setShowAlarmOverlay] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [watchSilenced, setWatchSilenced] = useState(false);
   const [showGapDetails, setShowGapDetails] = useState(false);
   const [metarPendingHourKey, setMetarPendingHourKey] = useState<string | null>(null);
   const [synopPendingHourKey, setSynopPendingHourKey] = useState<string | null>(null);
@@ -898,6 +899,11 @@ export default function Dashboard() {
     }
   };
 
+  const handleWatchSilence = () => {
+    setWatchSilenced(true);
+    beepActiveRef.current = false;
+  };
+
   const handleAcknowledgeSilenceEmail = () => {
     stopAlarm();
 
@@ -1097,20 +1103,25 @@ export default function Dashboard() {
   }, [icao]);
 
   useEffect(() => {
-    const active = !isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale;
+    if (opmetAlertActive) return;
+    setWatchSilenced(false);
+  }, [opmetAlertActive]);
+
+  useEffect(() => {
+    const active = !isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale && !watchSilenced;
     if (active && !beepActiveRef.current) {
       beepActiveRef.current = true;
       playBeep(0.2, 880);
     } else if (!active) {
       beepActiveRef.current = false;
     }
-  }, [isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, playBeep]);
+  }, [isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, watchSilenced, playBeep]);
 
   useEffect(() => {
-    if (!isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale && nextCheck === 0) {
+    if (!isHistoryView && opmetAlertActive && audioEnabled && !metarAlertStale && !synopAlertStale && !watchSilenced && nextCheck === 0) {
       playBeep(0.2, 880);
     }
-  }, [nextCheck, isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, playBeep]);
+  }, [nextCheck, isHistoryView, opmetAlertActive, audioEnabled, metarAlertStale, synopAlertStale, watchSilenced, playBeep]);
 
   useEffect(() => {
     const topMessage = list.length > 0 ? list[0].mensagem : "";
@@ -1388,93 +1399,113 @@ export default function Dashboard() {
 
       {!isHistoryView && (
         <>
-      {opmetAlertActive && (
-        <div className="fixed top-0 left-0 right-0 z-40 relative px-3 pt-3 pb-2 space-y-2">
+      {opmetAlertActive && !watchSilenced && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-xl p-4">
           <div
-            className="absolute inset-0 pointer-events-none opacity-40"
+            className="absolute inset-0 pointer-events-none opacity-30"
             style={{
-              background: "radial-gradient(circle at top, hsl(0 72% 55% / 0.15), transparent 60%)",
+              background: "radial-gradient(circle at center, hsl(0 72% 55% / 0.15), transparent 60%)",
               animation: "pulse-glow 1.5s ease-in-out infinite",
             }}
           />
-          {metarAlertActive && (
-            <div className="card-neon border-red-500/20 overflow-hidden shadow-[0_0_30px_hsl(0_72%_55%/0.15)]">
-              <div className="h-0.5 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-500/40 via-red-400 to-red-500/40" />
-                <div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                  style={{
-                    animation: "shimmer 2s linear infinite",
-                    backgroundSize: "200% 100%",
-                  }}
-                />
-              </div>
-              <div className="p-4 sm:p-5 flex flex-col lg:flex-row gap-4">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center border border-red-500/20 animate-pulse-glow">
-                    <AlertTriangle className="w-6 h-6 text-red-400" />
-                  </div>
+
+          <div className="relative max-w-sm w-full space-y-4">
+            {metarAlertActive && (
+              <div className="card-neon border-red-500/25 rounded-xl overflow-hidden shadow-[0_0_60px_hsl(0_72%_55%/0.1)]">
+                <div className="h-1 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-red-400 to-red-500" />
+                  <div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                    style={{
+                      animation: "shimmer 1.5s linear infinite",
+                      backgroundSize: "200% 100%",
+                    }}
+                  />
                 </div>
-                <div className="flex-grow space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-base font-bold text-foreground uppercase tracking-wide font-mono">
+                <div className="p-8 flex flex-col items-center gap-6 text-center">
+                  <div className="relative">
+                    <div className="w-18 h-18 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 p-4">
+                      <AlertTriangle className="w-8 h-8 text-red-400 animate-bounce" />
+                    </div>
+                    <div className="absolute -inset-3 rounded-full border border-red-500/10 animate-ping opacity-20" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight font-mono">
                       METAR Not Updated
-                    </h3>
-                    <Badge className="bg-red-500/15 text-red-400 border border-red-500/20 text-xs font-bold font-mono uppercase px-2.5">
+                    </h2>
+                    <p className="text-base text-muted-foreground mt-2 leading-relaxed">
+                      METAR for{" "}
+                      <span className="font-mono text-primary font-bold">
+                        {formatUtcHourLabel(new Date(utcHourKeyToMs(metarPendingHourKey ?? nextHourKey)))}{" "}
+                        UTC
+                      </span>{" "}
+                      has not been updated in the OPMET database yet
+                      {metarAlertStale
+                        ? " — significantly delayed."
+                        : ". Checking every 10 seconds..."}
+                      {metarDataUpdatedAt > 0 &&
+                        ` · last OPMET data ${Math.max(0, Math.round((Date.now() - metarDataUpdatedAt) / 1000))}s ago`}
+                    </p>
+                    <Badge className="mt-4 bg-red-500/15 text-red-400 border border-red-500/20 text-xs font-bold font-mono uppercase px-2.5">
                       {metarAlertStale ? "DELAYED" : "NOT UPDATED"}
                     </Badge>
                   </div>
-                  <div className="bg-background/60 rounded-md p-3 sm:p-4 border-l-2 border-red-500/30 font-mono text-sm text-foreground/85 leading-relaxed whitespace-pre-wrap">
-                    METAR for{" "}
-                    {formatUtcHourLabel(new Date(utcHourKeyToMs(metarPendingHourKey ?? nextHourKey)))}{" "}
-                    UTC has not been updated in the OPMET database yet
-                    {metarAlertStale ? " — significantly delayed." : ". Checking every 10 seconds..."}
-                    {metarDataUpdatedAt > 0 &&
-                      ` · last OPMET data ${Math.max(0, Math.round((Date.now() - metarDataUpdatedAt) / 1000))}s ago`}
-                  </div>
                 </div>
               </div>
-            </div>
-          )}
-          {synopAlertActive && (
-            <div className="card-neon border-red-500/20 overflow-hidden shadow-[0_0_30px_hsl(0_72%_55%/0.06)]">
-              <div className="h-0.5 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-500/40 via-red-400 to-red-500/40" />
-                <div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                  style={{
-                    animation: "shimmer 2s linear infinite",
-                    backgroundSize: "200% 100%",
-                  }}
-                />
-              </div>
-              <div className="p-4 sm:p-5 flex flex-col lg:flex-row gap-4">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center border border-red-500/20 animate-pulse-glow">
-                    <AlertTriangle className="w-6 h-6 text-red-400" />
-                  </div>
+            )}
+
+            {synopAlertActive && (
+              <div className="card-neon border-red-500/25 rounded-xl overflow-hidden shadow-[0_0_60px_hsl(0_72%_55%/0.1)]">
+                <div className="h-1 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-red-400 to-red-500" />
+                  <div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                    style={{
+                      animation: "shimmer 1.5s linear infinite",
+                      backgroundSize: "200% 100%",
+                    }}
+                  />
                 </div>
-                <div className="flex-grow space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-base font-bold text-foreground uppercase tracking-wide font-mono">
+                <div className="p-8 flex flex-col items-center gap-6 text-center">
+                  <div className="relative">
+                    <div className="w-18 h-18 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 p-4">
+                      <AlertTriangle className="w-8 h-8 text-red-400 animate-bounce" />
+                    </div>
+                    <div className="absolute -inset-3 rounded-full border border-red-500/10 animate-ping opacity-20" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight font-mono">
                       SYNOP Not Updated
-                    </h3>
-                    <Badge className="bg-red-500/15 text-red-400 border border-red-500/20 text-xs font-bold font-mono uppercase px-2.5">
+                    </h2>
+                    <p className="text-base text-muted-foreground mt-2 leading-relaxed">
+                      SYNOP for{" "}
+                      <span className="font-mono text-primary font-bold">
+                        {formatUtcHourLabel(new Date(utcHourKeyToMs(synopPendingHourKey ?? synopTargetKey)))}{" "}
+                        UTC
+                      </span>{" "}
+                      has not been published in the OPMET database yet
+                      {synopAlertStale
+                        ? " — significantly delayed."
+                        : ". Checking every 10 seconds..."}
+                      {synopDataUpdatedAt > 0 &&
+                        ` · last OPMET data ${Math.max(0, Math.round((Date.now() - synopDataUpdatedAt) / 1000))}s ago`}
+                    </p>
+                    <Badge className="mt-4 bg-red-500/15 text-red-400 border border-red-500/20 text-xs font-bold font-mono uppercase px-2.5">
                       {synopAlertStale ? "DELAYED" : "NOT UPDATED"}
                     </Badge>
                   </div>
-                  <div className="bg-background/60 rounded-md p-3 sm:p-4 border-l-2 border-red-500/30 font-mono text-sm text-foreground/85 leading-relaxed whitespace-pre-wrap">
-                    SYNOP for{" "}
-                    {formatUtcHourLabel(new Date(utcHourKeyToMs(synopPendingHourKey ?? synopTargetKey)))}{" "}
-                    UTC has not been published in the OPMET database yet
-                    {synopAlertStale ? " — significantly delayed." : ". Checking every 10 seconds..."}
-                    {synopDataUpdatedAt > 0 &&
-                      ` · last OPMET data ${Math.max(0, Math.round((Date.now() - synopDataUpdatedAt) / 1000))}s ago`}
-                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+
+            <Button
+              type="button"
+              onClick={handleWatchSilence}
+              className="w-full py-5 bg-foreground text-background hover:bg-foreground/90 font-bold text-base rounded-lg uppercase tracking-wider font-mono"
+            >
+              Silence
+            </Button>
+          </div>
         </div>
       )}
 
@@ -1490,6 +1521,18 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setWatchSilenced(false)}
+                className={`h-7 px-2.5 text-[11px] font-mono uppercase tracking-wider border ${
+                  metarAlertActive
+                    ? "bg-amber-500/15 text-amber-300 border-amber-500/45 animate-pulse"
+                    : "bg-muted text-muted-foreground border-border/60"
+                }`}
+              >
+                UPD
+              </Button>
               <Button
                 type="button"
                 size="sm"
