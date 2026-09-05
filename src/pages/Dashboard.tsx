@@ -7,14 +7,13 @@ import {
   Plane,
   RefreshCw,
   Shield,
-  Volume2,
-  VolumeX,
   Wind,
   Zap,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAudio } from "@/contexts/audio-context";
 import { useIcao } from "@/contexts/icao-context";
 import { useLocation } from "react-router-dom";
 import {
@@ -305,7 +304,7 @@ export default function Dashboard() {
   const location = useLocation();
   const [utcNow, setUtcNow] = useState(() => new Date());
   const [nextCheck, setNextCheck] = useState(CHECK_INTERVAL_SECONDS);
-  const [audioEnabled, setAudioEnabled] = useState(true);
+  const { audioEnabled, setAudioEnabled } = useAudio();
   const [showAlarmOverlay, setShowAlarmOverlay] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [watchSilenced, setWatchSilenced] = useState(false);
@@ -889,7 +888,7 @@ export default function Dashboard() {
     }
   }, [initAudio]);
 
-  const stopAlarm = () => {
+  const stopAlarm = useCallback(() => {
     showAlarmRef.current = false;
     setShowAlarmOverlay(false);
     setAudioBlocked(false);
@@ -897,7 +896,17 @@ export default function Dashboard() {
       window.clearTimeout(alarmTimeoutRef.current);
       alarmTimeoutRef.current = null;
     }
-  };
+  }, []);
+
+  const audioEnabledRef = useRef(audioEnabled);
+
+  useEffect(() => {
+    const was = audioEnabledRef.current;
+    audioEnabledRef.current = audioEnabled;
+    if (audioEnabled === was) return;
+    if (audioEnabled) playBeep(0.1, 880);
+    else stopAlarm();
+  }, [audioEnabled, playBeep, stopAlarm]);
 
   const handleWatchSilence = () => {
     setWatchSilenced(true);
@@ -1212,19 +1221,6 @@ export default function Dashboard() {
         </div>
 
         <div className="flex w-full md:w-auto items-center md:justify-end gap-2 flex-wrap">
-          {/* UTC clock */}
-          <div className="flex items-center gap-2 bg-card rounded-lg px-3 py-2 border border-border/60">
-            <Clock className="w-3.5 h-3.5 text-primary/60" />
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-mono text-sm sm:text-base font-bold tabular-nums glow-text">
-                {formatUtcClock(utcNow)}
-              </span>
-              <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground">
-                UTC
-              </span>
-            </div>
-          </div>
-
           {/* Status indicator */}
           <div
             className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-mono font-bold uppercase tracking-wider ${
@@ -1349,52 +1345,23 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Audio Toggle */}
-        <button
-          onClick={() => {
-            const next = !audioEnabled;
-            setAudioEnabled(next);
-            if (next) playBeep(0.1, 880);
-            else stopAlarm();
-          }}
-          className={`card-neon p-3 sm:p-4 text-left transition-all ${
-            audioEnabled
-              ? "border-primary/20 shadow-[0_0_20px_hsl(190_95%_55%/0.06)]"
-              : ""
-          }`}
-        >
+        {/* UTC Clock */}
+        <div className="card-neon p-3 sm:p-4">
           <div className="flex items-center gap-2 mb-3">
-            {audioEnabled ? (
-              <Volume2 className="w-3.5 h-3.5 text-primary" />
-            ) : (
-              <VolumeX className="w-3.5 h-3.5 text-muted-foreground" />
-            )}
+            <Clock className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-              Audio
+              UTC Clock
             </span>
           </div>
           <div className="flex items-center gap-2.5">
-            {/* Toggle pill */}
-            <div
-              className={`relative w-8 h-4 rounded-full transition-colors ${
-                audioEnabled ? "bg-primary/20" : "bg-muted"
-              }`}
-            >
-              <div
-                className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${
-                  audioEnabled
-                    ? "left-0.5 translate-x-4 bg-primary shadow-[0_0_8px_hsl(190_95%_55%/0.5)]"
-                    : "left-0.5 translate-x-0 bg-muted-foreground/40"
-                }`}
-              />
-            </div>
-            <span
-              className={`text-base font-bold font-mono ${audioEnabled ? "text-primary" : "text-muted-foreground"}`}
-            >
-              {audioEnabled ? "ON" : "OFF"}
+            <span className="text-[1.35rem] sm:text-[1.5rem] font-black font-mono tabular-nums glow-text">
+              {formatUtcClock(utcNow)}
+            </span>
+            <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground">
+              UTC
             </span>
           </div>
-        </button>
+        </div>
       </div>
 
       {!isHistoryView && (
@@ -1918,7 +1885,7 @@ export default function Dashboard() {
       {/* ── Footer ── */}
       <footer className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-5 border-t border-border/40">
         <span className="text-xs font-mono text-muted-foreground/60 uppercase tracking-[0.15em]">
-          {"Data Source :: REDEMET / AISWEB API"}
+          {"Data Source :: REDEMET / AISWEB / AVIATIONWEATHER"}
         </span>
       </footer>
 

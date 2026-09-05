@@ -1,6 +1,7 @@
-import { Activity, History, Radio, Search } from "lucide-react";
+import { Activity, History, Radio, Search, Volume2, VolumeX } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
+import { useAudio } from "@/contexts/audio-context";
 import { useIcao } from "@/contexts/icao-context";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -24,6 +25,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { icao, inputIcao, setInputIcao, searchIcao } = useIcao();
+  const { audioEnabled, toggleAudio } = useAudio();
   const currentPath = location.pathname;
   const historyMode = currentPath === "/" && new URLSearchParams(location.search).get("view") === "history";
   const collapsed = state === "collapsed";
@@ -151,6 +153,62 @@ export function AppSidebar() {
                 >
                   <History className="w-4 h-4" />
                   {!collapsed && <span className="font-medium">History</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Audio */}
+        <SidebarGroup className="mt-4">
+          <SidebarGroupLabel
+            className={`text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-medium mb-2 px-2 ${collapsed ? "sr-only" : ""}`}
+          >
+            Alerts
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={toggleAudio}
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-left transition-all ${
+                    audioEnabled
+                      ? "bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_hsl(190_95%_55%/0.08)]"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {audioEnabled ? (
+                    <Volume2 className="w-4 h-4 text-primary" />
+                  ) : (
+                    <VolumeX className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  {!collapsed && (
+                    <>
+                      <span className="font-medium">Audio</span>
+                      <div className="ml-auto flex items-center gap-2">
+                        <div
+                          className={`relative w-8 h-4 rounded-full transition-colors ${
+                            audioEnabled ? "bg-primary/20" : "bg-muted"
+                          }`}
+                        >
+                          <div
+                            className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${
+                              audioEnabled
+                                ? "left-0.5 translate-x-4 bg-primary shadow-[0_0_8px_hsl(190_95%_55%/0.5)]"
+                                : "left-0.5 translate-x-0 bg-muted-foreground/40"
+                            }`}
+                          />
+                        </div>
+                        <span
+                          className={`text-xs font-bold font-mono ${
+                            audioEnabled ? "text-primary" : "text-muted-foreground"
+                          }`}
+                        >
+                          {audioEnabled ? "ON" : "OFF"}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
