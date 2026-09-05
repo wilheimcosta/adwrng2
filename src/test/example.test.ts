@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  avWeatherItemToHistory,
+  avWeatherTafToText,
   extractIcaosFromAdWarning,
   hasMetarForHour,
   hasSynopForHour,
@@ -215,5 +217,73 @@ describe("OPMET watch helpers", () => {
       metarHourKeyFromReportText("TAF SBMQ 152102Z 1600/1624 06010KT RMK PHI=", reference),
     ).toBeNull();
     expect(metarHourKeyFromReportText("", reference)).toBeNull();
+  });
+});
+
+describe("AVIATIONWEATHER METAR helpers", () => {
+  it("converts the JSON item into a history item using rawOb and receiptTime", () => {
+    const item = avWeatherItemToHistory({
+      icaoId: "SBMQ",
+      receiptTime: "2026-09-04T23:55:46.724Z",
+      obsTime: 1788566400,
+      reportTime: "2026-09-05T00:00:00.000Z",
+      rawOb: "METAR SBMQ 050000Z 05009KT CAVOK 28/23 Q1013",
+    });
+    expect(item).toEqual({
+      mens: "METAR SBMQ 050000Z 05009KT CAVOK 28/23 Q1013",
+      recebimento: "2026-09-04 23:55:46",
+      validade_inicial: "2026-09-05 00:00:00",
+    });
+  });
+
+  it("returns null for non-object input", () => {
+    expect(avWeatherItemToHistory(null)).toBeNull();
+    expect(avWeatherItemToHistory(undefined)).toBeNull();
+    expect(avWeatherItemToHistory("raw")).toBeNull();
+  });
+
+  it("returns null when the message or receipt time is missing", () => {
+    expect(
+      avWeatherItemToHistory({ icaoId: "SBMQ", receiptTime: "2026-09-04T23:55:46.724Z" }),
+    ).toBeNull();
+    expect(avWeatherItemToHistory({ icaoId: "SBMQ", rawOb: "METAR SBMQ ..." })).toBeNull();
+  });
+
+  it("normalizes the receiptTime so the pipeline can parse it", () => {
+    const item = avWeatherItemToHistory({
+      rawOb: "METAR SBMQ 050000Z 05009KT CAVOK",
+      receiptTime: "2026-09-04T23:55:46.724Z",
+    });
+    expect(item).not.toBeNull();
+    const parsed = new Date(`${item!.recebimento!.replace(" ", "T")}Z`);
+    expect(Number.isNaN(parsed.getTime())).toBe(false);
+    expect(parsed.toISOString()).toBe("2026-09-04T23:55:46.000Z");
+  });
+
+  it("feeds the AVIATIONWEATHER message into hasMetarForHour", () => {
+    const item = avWeatherItemToHistory({
+      rawOb: "METAR SBMQ 050000Z 05009KT CAVOK 28/23 Q1013",
+      receiptTime: "2026-09-04T23:55:46.724Z",
+      reportTime: "2026-09-05T00:00:00.000Z",
+    });
+    expect(item).not.toBeNull();
+    expect(hasMetarForHour([item!], "2026090500")).toBe(true);
+    expect(hasMetarForHour([item!], "2026090501")).toBe(false);
+  });
+
+  it("extracts the TAF text from rawTAF", () => {
+    expect(
+      avWeatherTafToText({
+        icaoId: "SBMQ",
+        rawTAF: "TAF SBMQ 042300Z 0500/0524 06010KT 9999 SCT020 TN28/0509Z TX33/0518Z PROB30 TEMPO 0502/0506 8000 RA RMK PHI=",
+      }),
+    ).toBe("TAF SBMQ 042300Z 0500/0524 06010KT 9999 SCT020 TN28/0509Z TX33/0518Z PROB30 TEMPO 0502/0506 8000 RA RMK PHI=");
+  });
+
+  it("returns null when rawTAF is missing", () => {
+    expect(avWeatherTafToText(null)).toBeNull();
+    expect(avWeatherTafToText("taf")).toBeNull();
+    expect(avWeatherTafToText({ icaoId: "SBMQ" })).toBeNull();
+    expect(avWeatherTafToText({ icaoId: "SBMQ", rawTAF: "   " })).toBeNull();
   });
 });
