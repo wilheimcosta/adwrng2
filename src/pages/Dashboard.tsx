@@ -21,6 +21,7 @@ import {
   fetchAerodromeStatusDetails,
   fetchAiswebAerodromes,
   fetchAviationWeatherMetar,
+  fetchAviationWeatherTaf,
   fetchMetarHistory24h,
   fetchSynopHistory24h,
   getMessageNominalUtc,
@@ -377,18 +378,6 @@ export default function Dashboard() {
   }, [statusData?.reportText]);
   const metarPanelTitle = reportType === "SPECI" ? "SPECI" : "METAR";
 
-  const tafLine = useMemo(() => {
-    const report = statusData?.reportText ?? "";
-    const translatedUnavailable = translateUnavailableMessage(report, "TAF");
-    if (translatedUnavailable) return translatedUnavailable;
-
-    const normalized = report.replace(/\r/g, "");
-    const fullMatch = normalized.match(/TAF[\s\S]*?=/i);
-    return fullMatch
-      ? fullMatch[0].trim()
-      : `TAF not available for ${icao.toUpperCase()}`;
-  }, [statusData?.reportText, icao]);
-
   const warningIcaos = useMemo(
     () => extractIcaosFromAdWarning(statusData?.warningText ?? ""),
     [statusData?.warningText],
@@ -470,6 +459,39 @@ export default function Dashboard() {
     refetchInterval: 30_000,
     refetchIntervalInBackground: true,
   });
+
+  const {
+    data: avWeatherTafData,
+    isFetching: isFetchingAvWeatherTaf,
+  } = useQuery({
+    queryKey: ["avweather-taf", icao],
+    queryFn: async () => {
+      const res = await fetchAviationWeatherTaf(icao);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: /^[A-Z]{4}$/.test(icao),
+    staleTime: 30 * 1000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: true,
+  });
+
+  const latestAvWeatherTaf = useMemo(
+    () => String(avWeatherTafData ?? "").trim(),
+    [avWeatherTafData],
+  );
+
+  const tafLine = useMemo(() => {
+    const report = statusData?.reportText ?? "";
+    const translatedUnavailable = translateUnavailableMessage(report, "TAF");
+    if (translatedUnavailable) return translatedUnavailable;
+
+    const normalized = report.replace(/\r/g, "");
+    const fullMatch = normalized.match(/TAF[\s\S]*?=/i);
+    if (fullMatch) return fullMatch[0].trim();
+    if (latestAvWeatherTaf) return latestAvWeatherTaf;
+    return `TAF not available for ${icao.toUpperCase()}`;
+  }, [statusData?.reportText, latestAvWeatherTaf, icao]);
 
   const latestMetarMessage = useMemo(() => {
     let best: { nominal: Date; mens: string } | null = null;
@@ -1627,7 +1649,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="p-3 sm:p-4 relative">
-            {isFetching && (
+            {(isFetching || isFetchingAvWeatherTaf) && (
               <div className="absolute inset-0 animate-shimmer pointer-events-none" />
             )}
             <p className="text-sm md:text-base text-foreground/85 font-mono leading-7 whitespace-pre-wrap break-words relative">

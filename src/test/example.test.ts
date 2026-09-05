@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   avWeatherItemToHistory,
+  avWeatherTafToText,
   extractIcaosFromAdWarning,
   hasMetarForHour,
   hasSynopForHour,
@@ -268,5 +269,21 @@ describe("AVIATIONWEATHER METAR helpers", () => {
     expect(item).not.toBeNull();
     expect(hasMetarForHour([item!], "2026090500")).toBe(true);
     expect(hasMetarForHour([item!], "2026090501")).toBe(false);
+  });
+
+  it("extracts the TAF text from rawTAF", () => {
+    expect(
+      avWeatherTafToText({
+        icaoId: "SBMQ",
+        rawTAF: "TAF SBMQ 042300Z 0500/0524 06010KT 9999 SCT020 TN28/0509Z TX33/0518Z PROB30 TEMPO 0502/0506 8000 RA RMK PHI=",
+      }),
+    ).toBe("TAF SBMQ 042300Z 0500/0524 06010KT 9999 SCT020 TN28/0509Z TX33/0518Z PROB30 TEMPO 0502/0506 8000 RA RMK PHI=");
+  });
+
+  it("returns null when rawTAF is missing", () => {
+    expect(avWeatherTafToText(null)).toBeNull();
+    expect(avWeatherTafToText("taf")).toBeNull();
+    expect(avWeatherTafToText({ icaoId: "SBMQ" })).toBeNull();
+    expect(avWeatherTafToText({ icaoId: "SBMQ", rawTAF: "   " })).toBeNull();
   });
 });

@@ -496,6 +496,37 @@ export async function fetchAviationWeatherMetar(icao: string): Promise<{
   }
 }
 
+export function avWeatherTafToText(item: unknown): string | null {
+  if (!isRecord(item)) return null;
+  const raw = String(item.rawTAF ?? "").trim();
+  return raw || null;
+}
+
+export async function fetchAviationWeatherTaf(icao: string): Promise<{
+  data: string;
+  error?: string;
+}> {
+  const station = String(icao ?? "").toUpperCase().trim();
+  if (!/^[A-Z]{4}$/.test(station)) return { data: "", error: "ICAO inválido para consulta TAF." };
+  try {
+    const response = await fetch(`/api/aviationweather?ids=${encodeURIComponent(station)}&resource=taf`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      return { data: "", error: await responseError(response, `AVIATIONWEATHER retornou ${response.status} para TAF.`) };
+    }
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload)) return { data: "" };
+    for (const item of payload) {
+      const text = avWeatherTafToText(item);
+      if (text) return { data: text };
+    }
+    return { data: "" };
+  } catch (error) {
+    return { data: "", error: formatNetworkError(error, "Falha ao consultar TAF na AVIATIONWEATHER.") };
+  }
+}
+
 export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopHistoryItem[]; error?: string }> {
   const wmoId = await fetchWmoIdByIcao(icao);
   if (!wmoId) return { data: [], error: `Não foi possível determinar o WMO ID para ${icao}.` };
