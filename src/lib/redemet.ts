@@ -440,6 +440,62 @@ export async function fetchMetarHistory24h(icao: string): Promise<{ data: MetarH
   }
 }
 
+function normalizeAvWeatherTimestamp(value: string): string {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return "";
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return trimmed;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${parsed.getUTCFullYear()}-${pad(parsed.getUTCMonth() + 1)}-${pad(parsed.getUTCDate())} ${pad(parsed.getUTCHours())}:${pad(parsed.getUTCMinutes())}:${pad(parsed.getUTCSeconds())}`;
+}
+
+export interface AviationWeatherMetarItem {
+  icaoId?: string;
+  receiptTime?: string;
+  obsTime?: number;
+  reportTime?: string;
+  rawOb?: string;
+  metarType?: string;
+  [key: string]: unknown;
+}
+
+export function avWeatherItemToHistory(item: unknown): MetarHistoryItem | null {
+  if (!isRecord(item)) return null;
+  const mens = String(item.rawOb ?? "").trim();
+  const recebimento = normalizeAvWeatherTimestamp(String(item.receiptTime ?? ""));
+  const reportTime = normalizeAvWeatherTimestamp(String(item.reportTime ?? ""));
+  if (!mens || !recebimento) return null;
+  return {
+    mens,
+    recebimento,
+    validade_inicial: reportTime || String(item.validade_inicial ?? ""),
+  };
+}
+
+export async function fetchAviationWeatherMetar(icao: string): Promise<{
+  data: MetarHistoryItem[];
+  error?: string;
+}> {
+  const station = String(icao ?? "").toUpperCase().trim();
+  if (!/^[A-Z]{4}$/.test(station)) return { data: [], error: "ICAO inválido para consulta METAR." };
+  try {
+    const response = await fetch(`/api/aviationweather?ids=${encodeURIComponent(station)}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      return { data: [], error: await responseError(response, `AVIATIONWEATHER retornou ${response.status} para METAR.`) };
+    }
+    const payload: unknown = await response.json();
+    const rows = Array.isArray(payload) ? payload.filter(isRecord) : [];
+    const data = rows
+      .map(avWeatherItemToHistory)
+      .filter((item): item is MetarHistoryItem => item !== null);
+    return { data };
+  } catch (error) {
+    return { data: [], error: formatNetworkError(error, "Falha ao consultar METAR na AVIATIONWEATHER.") };
+  }
+}
+
 export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopHistoryItem[]; error?: string }> {
   const wmoId = await fetchWmoIdByIcao(icao);
   if (!wmoId) return { data: [], error: `Não foi possível determinar o WMO ID para ${icao}.` };

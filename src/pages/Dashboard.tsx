@@ -20,6 +20,7 @@ import {
   extractIcaosFromAdWarning,
   fetchAerodromeStatusDetails,
   fetchAiswebAerodromes,
+  fetchAviationWeatherMetar,
   fetchMetarHistory24h,
   fetchSynopHistory24h,
   getMessageNominalUtc,
@@ -452,6 +453,24 @@ export default function Dashboard() {
     void refetchSynopHistory();
   }, [isHistoryView, refetchMetarHistory, refetchSynopHistory]);
 
+  const {
+    data: avWeatherData,
+    isFetching: isFetchingAvWeather,
+    error: avWeatherError,
+    dataUpdatedAt: avWeatherDataUpdatedAt,
+  } = useQuery({
+    queryKey: ["avweather-metar-24h", icao],
+    queryFn: async () => {
+      const res = await fetchAviationWeatherMetar(icao);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: /^[A-Z]{4}$/.test(icao),
+    staleTime: 30 * 1000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: true,
+  });
+
   const latestMetarMessage = useMemo(() => {
     let best: { nominal: Date; mens: string } | null = null;
     for (const item of metarHistoryData ?? []) {
@@ -464,6 +483,19 @@ export default function Dashboard() {
     }
     return best;
   }, [metarHistoryData]);
+
+  const latestAvWeatherMessage = useMemo(() => {
+    let best: { nominal: Date; mens: string } | null = null;
+    for (const item of avWeatherData ?? []) {
+      const upper = String(item.mens ?? "").toUpperCase();
+      if (!/^(METAR|SPECI)\b/.test(upper)) continue;
+      const nominal = getMessageNominalUtc(item);
+      if (nominal && (!best || nominal.getTime() > best.nominal.getTime())) {
+        best = { nominal, mens: item.mens };
+      }
+    }
+    return best;
+  }, [avWeatherData]);
 
   const reportLine = useMemo(() => {
     const report = statusData?.reportText ?? "";
@@ -495,8 +527,14 @@ export default function Dashboard() {
       }
       return translateUnavailableMessage(report, "METAR") ?? statusLine;
     }
+    if (
+      latestAvWeatherMessage &&
+      (statusLine === "--" || !/\b(METAR|SPECI)\b/i.test(statusLine))
+    ) {
+      return latestAvWeatherMessage.mens;
+    }
     return translateUnavailableMessage(report, "METAR") ?? statusLine;
-  }, [statusData?.reportText, latestMetarMessage]);
+  }, [statusData?.reportText, latestMetarMessage, latestAvWeatherMessage]);
 
   const isMetarDelayed = useMemo(() => {
     const reportKey = reportLine ? metarHourKeyFromReportText(reportLine, utcNow) : null;
@@ -618,8 +656,20 @@ export default function Dashboard() {
     return slots;
   }, [utcNow, synopHistoryData]);
 
+  const metarHistoryDisplay = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: MetarHistoryItem[] = [];
+    for (const item of [...(metarHistoryData ?? []), ...(avWeatherData ?? [])]) {
+      const key = String(item.mens ?? "").trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+    return merged;
+  }, [metarHistoryData, avWeatherData]);
+
   const metarHourlyRows = useMemo(() => {
-    const normalized = (metarHistoryData ?? [])
+    const normalized = (metarHistoryDisplay ?? [])
       .map((item) => {
         const nominal = getMessageNominalUtc(item);
         if (!nominal) return null;
@@ -698,7 +748,7 @@ export default function Dashboard() {
       });
 
     return [...metarScheduledRows, ...speciRows].sort((a, b) => b.sortTs - a.sortTs);
-  }, [metarHistoryData, historySlots]);
+  }, [metarHistoryDisplay, historySlots]);
 
   const synopHourlyRows = useMemo(() => {
     const byHour = new Map<string, SynopHistoryItem[]>();
@@ -1179,11 +1229,17 @@ export default function Dashboard() {
 
   /* ── Derived status ── */
 
-  const statusLabel = useMemo(() => {
-    if (error) return "OFFLINE";
-    if (isFetching) return "SYNCING";
-    return "LIVE";
-  }, [error, isFetching]);
+  const redemetStatus: "offline" | "sync" | "live" =
+    error || metarHistoryError ? "offline" : isFetching || isFetchingMetarHistory ? "sync" : "live";
+
+  const avWeatherStatus: "offline" | "sync" | "live" =
+    avWeatherError ? "offline" : isFetchingAvWeather ? "sync" : "live";
+
+  const sourcePills: { label: string; state: "offline" | "sync" | "live" }[] =
+    [
+      { label: "REDEMET", state: redemetStatus },
+      { label: "AVIATIONWEATHER", state: avWeatherStatus },
+    ];
 
   const ruleConfig = flightRule ? flightRuleConfig(flightRule) : null;
   const panelAccentBarClass = "w-1 h-5 rounded-full bg-primary shadow-[0_0_8px_hsl(190_95%_55%/0.3)]";
@@ -1221,32 +1277,38 @@ export default function Dashboard() {
         </div>
 
         <div className="flex w-full md:w-auto items-center md:justify-end gap-2 flex-wrap">
-          {/* Status indicator */}
-          <div
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-mono font-bold uppercase tracking-wider ${
-              error
-                ? "text-red-400 border-red-500/20 bg-red-500/5"
-                : isFetching
-                  ? "text-amber-400 border-amber-400/20 bg-amber-400/5"
-                  : "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
-            }`}
-          >
-            <div className="relative flex items-center justify-center">
+          {/* Source status indicators */}
+          {sourcePills.map((pill) => {
+            const isOffline = pill.state === "offline";
+            const isSync = pill.state === "sync";
+            return (
               <div
-                className={`w-1.5 h-1.5 rounded-full ${
-                  error
-                    ? "bg-red-400"
-                    : isFetching
-                      ? "bg-amber-400"
-                      : "bg-emerald-400"
+                key={pill.label}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-mono font-bold uppercase tracking-wider ${
+                  isOffline
+                    ? "text-red-400 border-red-500/20 bg-red-500/5"
+                    : isSync
+                      ? "text-amber-400 border-amber-400/20 bg-amber-400/5"
+                      : "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
                 }`}
-              />
-              {!error && !isFetching && (
-                <div className="absolute w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping opacity-40" />
-              )}
-            </div>
-            {statusLabel}
-          </div>
+              >
+                <div className="relative flex items-center justify-center">
+                  <div
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isOffline ? "bg-red-400" : isSync ? "bg-amber-400" : "bg-emerald-400"
+                    }`}
+                  />
+                  {!isOffline && !isSync && (
+                    <div className="absolute w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping opacity-40" />
+                  )}
+                </div>
+                <span>{pill.label}</span>
+                <span className="text-[9px] tracking-[0.15em] text-muted-foreground">
+                  {isOffline ? "OFFLINE" : isSync ? "SYNC" : "LIVE"}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -1350,7 +1412,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 mb-3">
             <Clock className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-              UTC Clock
+              Clock
             </span>
           </div>
           <div className="flex items-center gap-2.5">
@@ -1585,9 +1647,9 @@ export default function Dashboard() {
               History :: Last 24h
             </h3>
             <div className="flex items-center gap-2">
-              {(metarDataUpdatedAt > 0 || synopDataUpdatedAt > 0) && (
+              {(metarDataUpdatedAt > 0 || synopDataUpdatedAt > 0 || avWeatherDataUpdatedAt > 0) && (
                 <span className="text-[10px] sm:text-xs font-mono text-muted-foreground">
-                  Updated: {formatUtcDateTime(new Date(Math.max(metarDataUpdatedAt, synopDataUpdatedAt)))}
+                  Updated: {formatUtcDateTime(new Date(Math.max(metarDataUpdatedAt, synopDataUpdatedAt, avWeatherDataUpdatedAt)))}
                 </span>
               )}
               <span
@@ -1666,7 +1728,7 @@ export default function Dashboard() {
                         </td>
                       </tr>
                     )}
-                    {metarHistoryError && !isFetchingMetarHistory && (
+                    {metarHourlyRows.length === 0 && metarHistoryError && !isFetchingMetarHistory && (
                       <tr>
                         <td colSpan={3} className="px-2 py-3 text-red-300">
                           {metarHistoryError instanceof Error
@@ -1675,15 +1737,14 @@ export default function Dashboard() {
                         </td>
                       </tr>
                     )}
-                    {!metarHistoryError && !isFetchingMetarHistory &&
-                      metarHourlyRows.length === 0 && (
+                    {metarHourlyRows.length === 0 && !metarHistoryError && !isFetchingMetarHistory && (
                         <tr>
                           <td colSpan={3} className="px-2 py-3 text-muted-foreground">
                             No METAR data in the last 24h.
                           </td>
                         </tr>
                       )}
-                    {!metarHistoryError &&
+                    {metarHourlyRows.length > 0 &&
                       metarHourlyRows.map((row, idx) => (
                         <tr key={`metar-${idx}`} className="border-b border-border/40 align-top">
                           <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
