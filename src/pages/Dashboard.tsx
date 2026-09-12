@@ -739,8 +739,24 @@ export default function Dashboard() {
     if (hasNextHourMetar) {
       slots.push({ key: nextKey, label: formatUtcHourLabel(nextHour) });
     }
+
+    // Ensure every message actually present in the data has a slot, even if
+    // the API response was fetched moments before a clock-hour boundary and
+    // the live slot window has already moved on.
+    const existingKeys = new Set(slots.map((s) => s.key));
+    const earliestAllowed = utcNow.getTime() - 26 * 60 * 60 * 1000;
+    const latestAllowed = utcNow.getTime() + 2 * 60 * 60 * 1000;
+    for (const item of [...metarHistoryCache, ...avWeatherData]) {
+      const nominal = getMessageNominalUtc(item);
+      if (!nominal) continue;
+      if (nominal.getTime() < earliestAllowed || nominal.getTime() > latestAllowed) continue;
+      const key = toUtcHourKey(nominal);
+      if (existingKeys.has(key)) continue;
+      existingKeys.add(key);
+      slots.push({ key, label: formatUtcHourLabel(new Date(utcHourKeyToMs(key))) });
+    }
     return slots;
-  }, [utcNow, metarHistoryCache]);
+  }, [utcNow, metarHistoryCache, avWeatherData]);
 
   const synopSlots = useMemo(() => {
     const slots = getSynop24hPublicationSlots(utcNow);
