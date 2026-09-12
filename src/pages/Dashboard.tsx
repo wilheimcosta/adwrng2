@@ -1373,6 +1373,7 @@ export default function Dashboard() {
             const isOffline = pill.state === "offline";
             const isSync = pill.state === "sync";
             const isPrimary = pill.label === primarySource;
+            const isBlinking = isOffline || (!isOffline && !isSync && isPrimary);
             return (
               <div
                 key={pill.label}
@@ -1387,7 +1388,7 @@ export default function Dashboard() {
                 <div className="relative flex items-center justify-center">
                   <div
                     className={`w-1.5 h-1.5 rounded-full ${isOffline ? "bg-red-400" : isSync ? "bg-amber-400" : "bg-emerald-400"} ${
-                      !isOffline && !isSync && isPrimary ? "animate-blink" : ""
+                      isBlinking ? "animate-blink" : ""
                     }`}
                   />
                 </div>
