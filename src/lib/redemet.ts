@@ -547,6 +547,69 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
   }
 }
 
+function historyItemTimestamp(item: {
+  mens: string;
+  recebimento?: string;
+  validade_inicial: string;
+}): number {
+  const parsed = parseUtcDate(item.recebimento ?? "") ?? parseUtcDate(item.validade_inicial);
+  return parsed ? parsed.getTime() : Number.POSITIVE_INFINITY;
+}
+
+function mergeHistoryItems<T extends { mens: string; validade_inicial: string } & { recebimento?: string }>(
+  prev: T[],
+  incoming: T[],
+  nowUtc: Date,
+): T[] {
+  const cutoff = nowUtc.getTime() - 25 * 60 * 60 * 1000;
+  const merged: T[] = [];
+  const seen = new Set<string>();
+  for (const item of [...prev, ...incoming]) {
+    const key = String(item.mens ?? "").trim();
+    if (!key || seen.has(key)) continue;
+    const ts = historyItemTimestamp(item);
+    if (Number.isFinite(ts) && ts < cutoff) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+  return merged.sort((a, b) => historyItemTimestamp(b) - historyItemTimestamp(a));
+}
+
+export function mergeMetarHistoryItems(
+  prev: MetarHistoryItem[],
+  incoming: MetarHistoryItem[],
+  nowUtc: Date = new Date(),
+): MetarHistoryItem[] {
+  return mergeHistoryItems(prev, incoming, nowUtc);
+}
+
+export function mergeSynopHistoryItems(
+  prev: SynopHistoryItem[],
+  incoming: SynopHistoryItem[],
+  nowUtc: Date = new Date(),
+): SynopHistoryItem[] {
+  return mergeHistoryItems(prev, incoming, nowUtc);
+}
+
+export function isAdWarningValidityExpired(text: string, reference: Date = new Date()): boolean {
+  const upper = String(text ?? "").toUpperCase();
+  const validityMatch = upper.match(/\bVALID\s+(\d{2})(\d{2})(\d{2})\/(\d{2})(\d{2})(\d{2})\b/);
+  if (!validityMatch) return false;
+  const startsAt = resolveUtcDate(
+    Number(validityMatch[1]),
+    Number(validityMatch[2]),
+    Number(validityMatch[3]),
+    reference,
+  );
+  const endsAt = resolveUtcDate(
+    Number(validityMatch[4]),
+    Number(validityMatch[5]),
+    Number(validityMatch[6]),
+    startsAt,
+  );
+  return reference.getTime() < startsAt.getTime() || reference.getTime() >= endsAt.getTime();
+}
+
 export function parseUtcDate(dateTime: string): Date | null {
   const value = String(dateTime ?? "").trim();
   if (!value) return null;

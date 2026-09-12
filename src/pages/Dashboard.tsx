@@ -27,9 +27,12 @@ import {
   getMessageNominalUtc,
   hasMetarForHour,
   hasSynopForHour,
+  isAdWarningValidityExpired,
   isMetarWatchMinute,
   isPendingAlertStale,
   mapFlightRuleFromFlag,
+  mergeMetarHistoryItems,
+  mergeSynopHistoryItems,
   metarHourKeyFromReportText,
   nextSynopticHourDate,
   parseUtcDate,
@@ -315,6 +318,8 @@ export default function Dashboard() {
   const [synopPendingHourKey, setSynopPendingHourKey] = useState<string | null>(null);
   const [metarPendingSinceMs, setMetarPendingSinceMs] = useState<number | null>(null);
   const [synopPendingSinceMs, setSynopPendingSinceMs] = useState<number | null>(null);
+  const [metarHistoryCache, setMetarHistoryCache] = useState<MetarHistoryItem[]>([]);
+  const [synopHistoryCache, setSynopHistoryCache] = useState<SynopHistoryItem[]>([]);
 
   const metarPendingMs = metarPendingSinceMs === null ? 0 : Date.now() - metarPendingSinceMs;
   const synopPendingMs = synopPendingSinceMs === null ? 0 : Date.now() - synopPendingSinceMs;
@@ -349,9 +354,13 @@ export default function Dashboard() {
   });
 
   const flightRule = mapFlightRuleFromFlag(statusData?.flag ?? null);
+  const warningExpired = useMemo(
+    () => isAdWarningValidityExpired(statusData?.warningText ?? "", utcNow),
+    [statusData?.warningText, utcNow],
+  );
   const list: DashboardWarning[] = useMemo(
     () =>
-      statusData?.hasAdWarning
+      statusData?.hasAdWarning && !warningExpired
         ? [
             {
               mensagem:
@@ -361,7 +370,7 @@ export default function Dashboard() {
             },
           ]
         : [],
-    [statusData?.hasAdWarning, statusData?.warningText, statusData?.reportText],
+    [statusData?.hasAdWarning, statusData?.warningText, statusData?.reportText, warningExpired],
   );
 
   const countdownDisplay = `${Math.floor(nextCheck / 60)
@@ -437,6 +446,16 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    if (!metarHistoryData) return;
+    setMetarHistoryCache((prev) => mergeMetarHistoryItems(prev, metarHistoryData));
+  }, [metarHistoryData]);
+
+  useEffect(() => {
+    if (!synopHistoryData) return;
+    setSynopHistoryCache((prev) => mergeSynopHistoryItems(prev, synopHistoryData));
+  }, [synopHistoryData]);
+
+  useEffect(() => {
     if (!isHistoryView) return;
     void refetchMetarHistory();
     void refetchSynopHistory();
@@ -495,7 +514,7 @@ export default function Dashboard() {
 
   const latestMetarMessage = useMemo(() => {
     let best: { nominal: Date; mens: string } | null = null;
-    for (const item of metarHistoryData ?? []) {
+    for (const item of metarHistoryCache) {
       const upper = String(item.mens ?? "").toUpperCase();
       if (!/^(METAR|SPECI)\b/.test(upper)) continue;
       const nominal = getMessageNominalUtc(item);
@@ -504,7 +523,7 @@ export default function Dashboard() {
       }
     }
     return best;
-  }, [metarHistoryData]);
+  }, [metarHistoryCache]);
 
   const latestAvWeatherMessage = useMemo(() => {
     let best: { nominal: Date; mens: string } | null = null;
@@ -582,10 +601,10 @@ export default function Dashboard() {
 
   const metarAlertActive =
     metarPendingHourKey !== null &&
-    !hasMetarForHour(metarHistoryData ?? [], metarPendingHourKey);
+    !hasMetarForHour(metarHistoryCache, metarPendingHourKey);
   const synopAlertActive =
     synopPendingHourKey !== null &&
-    !hasSynopForHour(synopHistoryData ?? [], synopPendingHourKey);
+    !hasSynopForHour(synopHistoryCache, synopPendingHourKey);
   const opmetAlertActive = metarAlertActive || synopAlertActive;
   const metarAlertStale =
     metarAlertActive && isPendingAlertStale(metarPendingSinceMs, Date.now(), OPMET_ALERT_MAX_MS);
@@ -597,38 +616,38 @@ export default function Dashboard() {
       metarPendingHourKey === null &&
       isMetarWatchWindow &&
       Date.now() - metarDataUpdatedAt < OPMET_DATA_FRESH_MS &&
-      !hasMetarForHour(metarHistoryData ?? [], nextHourKey)
+      !hasMetarForHour(metarHistoryCache, nextHourKey)
     ) {
       setMetarPendingHourKey(nextHourKey);
       setMetarPendingSinceMs(Date.now());
       setNextCheck(10);
     }
-  }, [isMetarWatchWindow, metarPendingHourKey, metarHistoryData, nextHourKey, metarDataUpdatedAt]);
+  }, [isMetarWatchWindow, metarPendingHourKey, metarHistoryCache, nextHourKey, metarDataUpdatedAt]);
 
   useEffect(() => {
     if (
       synopPendingHourKey === null &&
       isSynopWatchWindow &&
       Date.now() - synopDataUpdatedAt < OPMET_DATA_FRESH_MS &&
-      !hasSynopForHour(synopHistoryData ?? [], synopTargetKey)
+      !hasSynopForHour(synopHistoryCache, synopTargetKey)
     ) {
       setSynopPendingHourKey(synopTargetKey);
       setSynopPendingSinceMs(Date.now());
       setNextCheck(10);
     }
-  }, [isSynopWatchWindow, synopPendingHourKey, synopHistoryData, synopTargetKey, synopDataUpdatedAt]);
+  }, [isSynopWatchWindow, synopPendingHourKey, synopHistoryCache, synopTargetKey, synopDataUpdatedAt]);
 
   useEffect(() => {
     if (
       metarPendingHourKey !== null &&
-      hasMetarForHour(metarHistoryData ?? [], metarPendingHourKey)
+      hasMetarForHour(metarHistoryCache, metarPendingHourKey)
     ) {
       setMetarPendingHourKey(null);
       setMetarPendingSinceMs(null);
       void refetch();
       void refetchMetarHistory();
     }
-  }, [metarPendingHourKey, metarHistoryData, refetch, refetchMetarHistory]);
+  }, [metarPendingHourKey, metarHistoryCache, refetch, refetchMetarHistory]);
 
   useEffect(() => {
     if (metarPendingHourKey === null || !statusData?.reportText) return;
@@ -642,13 +661,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (
       synopPendingHourKey !== null &&
-      hasSynopForHour(synopHistoryData ?? [], synopPendingHourKey)
+      hasSynopForHour(synopHistoryCache, synopPendingHourKey)
     ) {
       setSynopPendingHourKey(null);
       setSynopPendingSinceMs(null);
       void refetchSynopHistory();
     }
-  }, [synopPendingHourKey, synopHistoryData, refetchSynopHistory]);
+  }, [synopPendingHourKey, synopHistoryCache, refetchSynopHistory]);
 
   const historySlots = useMemo(() => {
     const slots = getLast24HourSlots(utcNow);
@@ -656,7 +675,7 @@ export default function Dashboard() {
     nextHour.setUTCMinutes(0, 0, 0);
     nextHour.setUTCHours(nextHour.getUTCHours() + 1);
     const nextKey = toUtcHourKey(nextHour);
-    const hasNextHourMetar = (metarHistoryData ?? []).some((item) => {
+    const hasNextHourMetar = metarHistoryCache.some((item) => {
       const upper = String(item.mens ?? "").toUpperCase();
       if (!/^METAR\b/.test(upper)) return false;
       const nominal = getMessageNominalUtc(item);
@@ -666,29 +685,29 @@ export default function Dashboard() {
       slots.push({ key: nextKey, label: formatUtcHourLabel(nextHour) });
     }
     return slots;
-  }, [utcNow, metarHistoryData]);
+  }, [utcNow, metarHistoryCache]);
 
   const synopSlots = useMemo(() => {
     const slots = getSynop24hPublicationSlots(utcNow);
     const nextSynop = nextSynopticHourDate(utcNow);
     const nextKey = toUtcHourKey(nextSynop);
-    if (hasSynopForHour(synopHistoryData ?? [], nextKey)) {
+    if (hasSynopForHour(synopHistoryCache, nextKey)) {
       slots.push({ key: nextKey, label: formatUtcHourLabel(nextSynop) });
     }
     return slots;
-  }, [utcNow, synopHistoryData]);
+  }, [utcNow, synopHistoryCache]);
 
   const metarHistoryDisplay = useMemo(() => {
     const seen = new Set<string>();
     const merged: MetarHistoryItem[] = [];
-    for (const item of [...(metarHistoryData ?? []), ...(avWeatherData ?? [])]) {
+    for (const item of [...metarHistoryCache, ...(avWeatherData ?? [])]) {
       const key = String(item.mens ?? "").trim();
       if (!key || seen.has(key)) continue;
       seen.add(key);
       merged.push(item);
     }
     return merged;
-  }, [metarHistoryData, avWeatherData]);
+  }, [metarHistoryCache, avWeatherData]);
 
   const metarHourlyRows = useMemo(() => {
     const normalized = (metarHistoryDisplay ?? [])
@@ -774,7 +793,7 @@ export default function Dashboard() {
 
   const synopHourlyRows = useMemo(() => {
     const byHour = new Map<string, SynopHistoryItem[]>();
-    (synopHistoryData ?? []).forEach((item) => {
+    synopHistoryCache.forEach((item) => {
       const d = parseUtcDate(item.validade_inicial);
       if (!d) return;
       const key = toUtcHourKey(d);
@@ -811,7 +830,7 @@ export default function Dashboard() {
         sortTs: utcHourKeyToMs(slot.key),
       };
     }).sort((a, b) => b.sortTs - a.sortTs);
-  }, [synopHistoryData, synopSlots]);
+  }, [synopHistoryCache, synopSlots]);
 
   const hasHistoryGaps = useMemo(
     () =>
@@ -1181,6 +1200,8 @@ export default function Dashboard() {
     setMetarPendingSinceMs(null);
     setSynopPendingHourKey(null);
     setSynopPendingSinceMs(null);
+    setMetarHistoryCache([]);
+    setSynopHistoryCache([]);
   }, [icao]);
 
   useEffect(() => {
@@ -1743,7 +1764,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {isFetchingMetarHistory && (
+                    {isFetchingMetarHistory && metarHourlyRows.length === 0 && (
                       <tr>
                         <td colSpan={3} className="px-2 py-3 text-muted-foreground">
                           Loading METAR history...
@@ -1805,14 +1826,14 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {isFetchingSynopHistory && (
+                    {isFetchingSynopHistory && synopHourlyRows.length === 0 && (
                       <tr>
                         <td colSpan={2} className="px-2 py-3 text-muted-foreground">
                           Loading SYNOP history...
                         </td>
                       </tr>
                     )}
-                    {synopHistoryError && !isFetchingSynopHistory && (
+                    {synopHourlyRows.length === 0 && synopHistoryError && !isFetchingSynopHistory && (
                       <tr>
                         <td colSpan={2} className="px-2 py-3 text-red-300">
                           {synopHistoryError instanceof Error
@@ -1821,15 +1842,14 @@ export default function Dashboard() {
                         </td>
                       </tr>
                     )}
-                    {!synopHistoryError && !isFetchingSynopHistory &&
-                      synopHourlyRows.length === 0 && (
+                    {synopHourlyRows.length === 0 && !synopHistoryError && !isFetchingSynopHistory && (
                         <tr>
                           <td colSpan={2} className="px-2 py-3 text-muted-foreground">
                             No SYNOP data in the last 24h.
                           </td>
                         </tr>
                       )}
-                    {!synopHistoryError &&
+                    {synopHourlyRows.length > 0 &&
                       synopHourlyRows.map((row, idx) => (
                         <tr key={`synop-${idx}`} className="border-b border-border/40 align-top">
                           <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
@@ -1855,7 +1875,7 @@ export default function Dashboard() {
       {/* ── Warning / Status Area ── */}
       <div className="relative min-h-[200px]">
         {/* Loading overlay */}
-        {(isLoading || isFetching) && (
+        {(isLoading && !statusData) && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10 rounded-lg">
             <div className="flex flex-col items-center gap-4">
               {/* Radar-style spinner */}
