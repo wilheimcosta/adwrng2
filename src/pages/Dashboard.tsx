@@ -1386,13 +1386,10 @@ export default function Dashboard() {
               >
                 <div className="relative flex items-center justify-center">
                   <div
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      isOffline ? "bg-red-400" : isSync ? "bg-amber-400" : "bg-emerald-400"
+                    className={`w-1.5 h-1.5 rounded-full ${isOffline ? "bg-red-400" : isSync ? "bg-amber-400" : "bg-emerald-400"} ${
+                      !isOffline && !isSync && isPrimary ? "animate-blink" : ""
                     }`}
                   />
-                  {!isOffline && !isSync && isPrimary && (
-                    <div className="absolute w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping opacity-40" />
-                  )}
                 </div>
                 <span>{pill.label}</span>
                 <span className="text-[9px] tracking-[0.15em] text-muted-foreground">
