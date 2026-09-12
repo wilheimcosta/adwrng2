@@ -741,10 +741,11 @@ export default function Dashboard() {
     }
 
     // Ensure every message actually present in the data has a slot, even if
-    // the API response was fetched moments before a clock-hour boundary and
-    // the live slot window has already moved on.
+    // the API response was fetched minutes or hours before and the live slot
+    // window has already moved on. A generous floor only guards the "last 24h"
+    // intent against pathologically stale cached data.
     const existingKeys = new Set(slots.map((s) => s.key));
-    const earliestAllowed = utcNow.getTime() - 26 * 60 * 60 * 1000;
+    const earliestAllowed = utcNow.getTime() - 48 * 60 * 60 * 1000;
     const latestAllowed = utcNow.getTime() + 2 * 60 * 60 * 1000;
     for (const item of [...metarHistoryCache, ...avWeatherData]) {
       const nominal = getMessageNominalUtc(item);
