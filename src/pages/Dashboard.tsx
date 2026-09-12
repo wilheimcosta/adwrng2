@@ -22,7 +22,7 @@ import {
   fetchAerodromeStatusDetails,
   fetchAiswebAerodromes,
   fetchAviationWeatherMetarRaw,
-  fetchAviationWeatherTaf,
+  fetchAviationWeatherRawText,
   fetchMetarHistory24h,
   fetchSynopHistory24h,
   getMessageNominalUtc,
@@ -490,13 +490,38 @@ export default function Dashboard() {
     refetchIntervalInBackground: true,
   });
 
-  const avWeatherData = useMemo(
-    () =>
-      (avWeatherRawData ?? [])
+  const {
+    data: avWeatherRawTextData,
+    isFetching: isFetchingAvWeatherRaw,
+  } = useQuery({
+    queryKey: ["avweather-raw-history", icao],
+    queryFn: async () => {
+      const res = await fetchAviationWeatherRawText(icao);
+      if (res.error) throw new Error(res.error);
+      return res;
+    },
+    enabled: /^[A-Z]{4}$/.test(icao),
+    staleTime: 30 * 1000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: true,
+  });
+
+  const avWeatherData = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: MetarHistoryItem[] = [];
+    for (const item of [
+      ...(avWeatherRawTextData?.metars ?? []),
+      ...(avWeatherRawData ?? [])
         .map(avWeatherItemToHistory)
         .filter((item): item is MetarHistoryItem => item !== null),
-    [avWeatherRawData],
-  );
+    ]) {
+      const key = String(item.mens ?? "").trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+    return merged;
+  }, [avWeatherRawTextData, avWeatherRawData]);
 
   const currentAvWeatherFltCat = useMemo(() => {
     let best: { time: number; fltCat: unknown } | null = null;
@@ -517,25 +542,9 @@ export default function Dashboard() {
     return mapFlightRuleFromFlag(statusData?.flag ?? null);
   }, [redemetOffline, statusData?.flag, currentAvWeatherFltCat]);
 
-  const {
-    data: avWeatherTafData,
-    isFetching: isFetchingAvWeatherTaf,
-  } = useQuery({
-    queryKey: ["avweather-taf", icao],
-    queryFn: async () => {
-      const res = await fetchAviationWeatherTaf(icao);
-      if (res.error) throw new Error(res.error);
-      return res.data;
-    },
-    enabled: /^[A-Z]{4}$/.test(icao),
-    staleTime: 30 * 1000,
-    refetchInterval: 30_000,
-    refetchIntervalInBackground: true,
-  });
-
   const latestAvWeatherTaf = useMemo(
-    () => String(avWeatherTafData ?? "").trim(),
-    [avWeatherTafData],
+    () => String(avWeatherRawTextData?.taf ?? "").trim(),
+    [avWeatherRawTextData],
   );
 
   const tafLine = useMemo(() => {
@@ -1717,7 +1726,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="p-3 sm:p-4 relative">
-            {(isFetching || isFetchingAvWeatherTaf) && (
+            {(isFetching || isFetchingAvWeatherRaw) && (
               <div className="absolute inset-0 animate-shimmer pointer-events-none" />
             )}
             <p className="text-sm md:text-base text-foreground/85 font-mono leading-7 whitespace-pre-wrap break-words relative">

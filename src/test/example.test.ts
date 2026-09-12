@@ -15,6 +15,7 @@ import {
   mergeSynopHistoryItems,
   metarHourKeyFromReportText,
   nextSynopticHourDate,
+  parseAviationWeatherRawText,
   toUtcHourKey,
 } from "@/lib/redemet";
 
@@ -303,6 +304,53 @@ describe("AVIATIONWEATHER METAR helpers", () => {
         rawTAF: "TAF SBMQ 042300Z 0500/0524 06010KT 9999 SCT020 TN28/0509Z TX33/0518Z PROB30 TEMPO 0502/0506 8000 RA RMK PHI=",
       }),
     ).toBe("TAF SBMQ 042300Z 0500/0524 06010KT 9999 SCT020 TN28/0509Z TX33/0518Z PROB30 TEMPO 0502/0506 8000 RA RMK PHI=");
+  });
+
+  it("parses raw-text METAR lines into history items", () => {
+    const { metars, taf } = parseAviationWeatherRawText(
+      [
+        "METAR SBMQ 120700Z 01004KT 9999 BKN023 26/24 Q1010",
+        "METAR SBMQ 120600Z 03007KT 9999 BKN023 27/24 Q1011",
+      ].join("\n"),
+      new Date(Date.UTC(2026, 8, 12, 8, 0, 0)),
+    );
+    expect(metars).toHaveLength(2);
+    expect(metars[0]).toEqual({
+      mens: "METAR SBMQ 120700Z 01004KT 9999 BKN023 26/24 Q1010",
+      recebimento: "2026-09-12 07:00:00",
+      validade_inicial: "2026-09-12 07:00:00",
+    });
+    expect(taf).toBe("");
+  });
+
+  it("splits the TAF block from the METARs in the raw response", () => {
+    const { metars, taf } = parseAviationWeatherRawText(
+      [
+        "METAR SBMQ 120700Z 01004KT 9999 BKN023 26/24 Q1010",
+        "TAF SBMQ 120240Z 1206/1306 34006KT 9999 SCT030 TN25/1210Z TX33/1219Z",
+        "  BECMG 1211/1213 05015KT",
+        "  TEMPO 1216/1222 SCT030 FEW035TCU",
+        "  RMK PGX",
+      ].join("\n"),
+      new Date(Date.UTC(2026, 8, 12, 8, 0, 0)),
+    );
+    expect(metars).toHaveLength(1);
+    expect(taf).toContain("TAF SBMQ 120240Z");
+    expect(taf).toContain("RMK PGX");
+  });
+
+  it("handles a response without METAR lines", () => {
+    expect(
+      parseAviationWeatherRawText("No data found", new Date(Date.UTC(2026, 8, 12, 8, 0, 0))),
+    ).toEqual({ metars: [], taf: "" });
+  });
+
+  it("resolves day-of-month backwards across month boundaries", () => {
+    const { metars } = parseAviationWeatherRawText(
+      "METAR SBMQ 010700Z 01004KT 9999 BKN023 26/24 Q1010",
+      new Date(Date.UTC(2026, 8, 2, 8, 0, 0)),
+    );
+    expect(metars[0]?.validade_inicial).toBe("2026-09-01 07:00:00");
   });
 
   it("returns null when rawTAF is missing", () => {

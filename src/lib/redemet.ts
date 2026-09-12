@@ -522,6 +522,70 @@ export function avWeatherTafToText(item: unknown): string | null {
   return raw || null;
 }
 
+function formatAvWeatherUtcTimestamp(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+}
+
+export function parseAviationWeatherRawText(
+  text: string,
+  reference: Date = new Date(),
+): { metars: MetarHistoryItem[]; taf: string } {
+  const metars: MetarHistoryItem[] = [];
+  const lines = String(text ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const tafStart = lines.findIndex((line) => /^TAF\s+[A-Z0-9]{4}\b/i.test(line));
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (tafStart !== -1 && i >= tafStart) {
+      break;
+    }
+    if (!/^METAR\s+[A-Z0-9]{4}\b/i.test(line)) continue;
+    const match = line.toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
+    if (!match) continue;
+    const day = Number(match[1]);
+    const hour = Number(match[2]);
+    const minute = Number(match[3]);
+    if ([day, hour, minute].some((value) => Number.isNaN(value))) continue;
+    const nominal = resolveDayHourMinuteWithReference(day, hour, minute, reference);
+    const stamp = formatAvWeatherUtcTimestamp(nominal);
+    metars.push({ mens: line, recebimento: stamp, validade_inicial: stamp });
+  }
+  const taf = tafStart === -1 ? "" : lines.slice(tafStart).join("\n");
+  return { metars, taf };
+}
+
+export type AviationWeatherRawHistory = {
+  text: string;
+  metars: MetarHistoryItem[];
+  taf: string;
+  error?: string;
+};
+
+export async function fetchAviationWeatherRawText(
+  icao: string,
+  reference: Date = new Date(),
+): Promise<AviationWeatherRawHistory> {
+  const station = String(icao ?? "").toUpperCase().trim();
+  if (!/^[A-Z]{4}$/.test(station)) {
+    return { text: "", metars: [], taf: "", error: "ICAO inválido para consulta METAR." };
+  }
+  try {
+    const response = await fetch(`/api/aviationweather?ids=${encodeURIComponent(station)}&format=raw`, {
+      headers: { Accept: "text/plain" },
+    });
+    if (!response.ok) {
+      return { text: "", metars: [], taf: "", error: await responseError(response, `AVIATIONWEATHER retornou ${response.status} para METAR.`) };
+    }
+    const text = await response.text();
+    return { text, ...parseAviationWeatherRawText(text, reference) };
+  } catch (error) {
+    return { text: "", metars: [], taf: "", error: formatNetworkError(error, "Falha ao consultar METAR na AVIATIONWEATHER.") };
+  }
+}
+
 export async function fetchAviationWeatherTaf(icao: string): Promise<{
   data: string;
   error?: string;
