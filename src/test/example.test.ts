@@ -5,12 +5,17 @@ import {
   extractIcaosFromAdWarning,
   hasMetarForHour,
   hasSynopForHour,
+  isAdWarningValidityExpired,
   isMetarWatchMinute,
   isPendingAlertStale,
   isSynopticPublicationHour,
+  mapFlightRuleFromAviationWeather,
   mapFlightRuleFromFlag,
+  mergeMetarHistoryItems,
+  mergeSynopHistoryItems,
   metarHourKeyFromReportText,
   nextSynopticHourDate,
+  parseAviationWeatherRawText,
   toUtcHourKey,
 } from "@/lib/redemet";
 
@@ -34,6 +39,27 @@ describe("REDEMET helpers", () => {
     expect(mapFlightRuleFromFlag("")).toBeNull();
     expect(mapFlightRuleFromFlag(0)).toBeNull();
     expect(mapFlightRuleFromFlag("VFR")).toBeNull();
+  });
+
+  it("maps AVIATIONWEATHER fltCat values to flight rules", () => {
+    expect(mapFlightRuleFromAviationWeather("VFR")).toBe("VFR");
+    expect(mapFlightRuleFromAviationWeather("MVFR")).toBe("MVFR");
+    expect(mapFlightRuleFromAviationWeather("IFR")).toBe("IFR");
+    expect(mapFlightRuleFromAviationWeather("LIFR")).toBe("LIFR");
+  });
+
+  it("maps AVIATIONWEATHER fltCat case-insensitively and trims whitespace", () => {
+    expect(mapFlightRuleFromAviationWeather("  vfr ")).toBe("VFR");
+    expect(mapFlightRuleFromAviationWeather("mvfr")).toBe("MVFR");
+    expect(mapFlightRuleFromAviationWeather("IFR")).toBe("IFR");
+  });
+
+  it("returns null for missing or invalid AVIATIONWEATHER fltCat values", () => {
+    expect(mapFlightRuleFromAviationWeather(null)).toBeNull();
+    expect(mapFlightRuleFromAviationWeather(undefined)).toBeNull();
+    expect(mapFlightRuleFromAviationWeather("")).toBeNull();
+    expect(mapFlightRuleFromAviationWeather("UNKNOWN")).toBeNull();
+    expect(mapFlightRuleFromAviationWeather(3)).toBeNull();
   });
 
   it("extracts only aerodromes from the warning header", () => {
@@ -280,10 +306,222 @@ describe("AVIATIONWEATHER METAR helpers", () => {
     ).toBe("TAF SBMQ 042300Z 0500/0524 06010KT 9999 SCT020 TN28/0509Z TX33/0518Z PROB30 TEMPO 0502/0506 8000 RA RMK PHI=");
   });
 
+  it("parses raw-text METAR lines into history items", () => {
+    const { metars, taf } = parseAviationWeatherRawText(
+      [
+        "METAR SBMQ 120700Z 01004KT 9999 BKN023 26/24 Q1010",
+        "METAR SBMQ 120600Z 03007KT 9999 BKN023 27/24 Q1011",
+      ].join("\n"),
+      new Date(Date.UTC(2026, 8, 12, 8, 0, 0)),
+    );
+    expect(metars).toHaveLength(2);
+    expect(metars[0]).toEqual({
+      mens: "METAR SBMQ 120700Z 01004KT 9999 BKN023 26/24 Q1010",
+      recebimento: "2026-09-12 07:00:00",
+      validade_inicial: "2026-09-12 07:00:00",
+    });
+    expect(taf).toBe("");
+  });
+
+  it("splits the TAF block from the METARs in the raw response", () => {
+    const { metars, taf } = parseAviationWeatherRawText(
+      [
+        "METAR SBMQ 120700Z 01004KT 9999 BKN023 26/24 Q1010",
+        "TAF SBMQ 120240Z 1206/1306 34006KT 9999 SCT030 TN25/1210Z TX33/1219Z",
+        "  BECMG 1211/1213 05015KT",
+        "  TEMPO 1216/1222 SCT030 FEW035TCU",
+        "  RMK PGX",
+      ].join("\n"),
+      new Date(Date.UTC(2026, 8, 12, 8, 0, 0)),
+    );
+    expect(metars).toHaveLength(1);
+    expect(taf).toContain("TAF SBMQ 120240Z");
+    expect(taf).toContain("RMK PGX");
+  });
+
+  it("handles a response without METAR lines", () => {
+    expect(
+      parseAviationWeatherRawText("No data found", new Date(Date.UTC(2026, 8, 12, 8, 0, 0))),
+    ).toEqual({ metars: [], taf: "" });
+  });
+
+  it("resolves day-of-month backwards across month boundaries", () => {
+    const { metars } = parseAviationWeatherRawText(
+      "METAR SBMQ 010700Z 01004KT 9999 BKN023 26/24 Q1010",
+      new Date(Date.UTC(2026, 8, 2, 8, 0, 0)),
+    );
+    expect(metars[0]?.validade_inicial).toBe("2026-09-01 07:00:00");
+  });
+
   it("returns null when rawTAF is missing", () => {
     expect(avWeatherTafToText(null)).toBeNull();
     expect(avWeatherTafToText("taf")).toBeNull();
     expect(avWeatherTafToText({ icaoId: "SBMQ" })).toBeNull();
     expect(avWeatherTafToText({ icaoId: "SBMQ", rawTAF: "   " })).toBeNull();
+  });
+});
+
+describe("history resilience helpers", () => {
+  const nowUtc = new Date("2026-09-05T12:00:00Z");
+
+  it("keeps previously loaded METAR messages when a fetch returns nothing", () => {
+    const prev = [
+      {
+        mens: "METAR SBMQ 051000Z 05009KT CAVOK 28/23 Q1013",
+        recebimento: "2026-09-05 10:05:00",
+        validade_inicial: "2026-09-05 10:00:00",
+      },
+    ];
+    const merged = mergeMetarHistoryItems(prev, [], nowUtc);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].mens).toBe(prev[0].mens);
+  });
+
+  it("appends only new METAR messages incrementally", () => {
+    const prev = [
+      {
+        mens: "METAR SBMQ 051000Z 05009KT CAVOK",
+        recebimento: "2026-09-05 10:05:00",
+        validade_inicial: "2026-09-05 10:00:00",
+      },
+    ];
+    const incoming = [
+      {
+        mens: "METAR SBMQ 051100Z 04010KT CAVOK",
+        recebimento: "2026-09-05 11:05:00",
+        validade_inicial: "2026-09-05 11:00:00",
+      },
+      {
+        mens: "METAR SBMQ 051000Z 05009KT CAVOK",
+        recebimento: "2026-09-05 10:05:00",
+        validade_inicial: "2026-09-05 10:00:00",
+      },
+    ];
+    const merged = mergeMetarHistoryItems(prev, incoming, nowUtc);
+    expect(merged).toHaveLength(2);
+    expect(merged[0].mens).toContain("051100Z");
+  });
+
+  it("drops METAR messages older than 24h while preserving the recent ones", () => {
+    const prev = [
+      {
+        mens: "METAR SBMQ 040900Z 05009KT CAVOK",
+        recebimento: "2026-09-04 09:05:00",
+        validade_inicial: "2026-09-04 09:00:00",
+      },
+      {
+        mens: "METAR SBMQ 051100Z 04010KT CAVOK",
+        recebimento: "2026-09-05 11:05:00",
+        validade_inicial: "2026-09-05 11:00:00",
+      },
+    ];
+    const merged = mergeMetarHistoryItems(prev, [], nowUtc);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].mens).toContain("051100Z");
+  });
+
+  it("keeps previously loaded SYNOP messages when a fetch returns nothing", () => {
+    const prev = [
+      {
+        mens: "AAXX 05061 82015 41460 52706 10290 20258 30135 40162 57008 333 10292",
+        validade_inicial: "2026-09-05 06:00:00",
+      },
+    ];
+    const merged = mergeSynopHistoryItems(prev, [], nowUtc);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].mens).toBe(prev[0].mens);
+  });
+
+  it("appends only new SYNOP messages incrementally", () => {
+    const prev = [
+      {
+        mens: "AAXX 05061 82015 41460",
+        validade_inicial: "2026-09-05 06:00:00",
+      },
+    ];
+    const incoming = [
+      {
+        mens: "AAXX 05061 82015 41460",
+        validade_inicial: "2026-09-05 06:00:00",
+      },
+      {
+        mens: "AAXX 05121 82015 41490",
+        validade_inicial: "2026-09-05 12:00:00",
+      },
+    ];
+    const merged = mergeSynopHistoryItems(prev, incoming, nowUtc);
+    expect(merged).toHaveLength(2);
+    expect(merged[0].mens).toContain("05121");
+  });
+
+  it("keeps the oldest SYNOP message at the 24h publication boundary even ~27h after nowUtc", () => {
+    const prev = [
+      {
+        mens: "AAXX 04031 82015 41480",
+        validade_inicial: "2026-09-04 03:00:00",
+      },
+    ];
+    const boundaryNow = new Date("2026-09-05T05:59:00Z");
+    const merged = mergeSynopHistoryItems(prev, [], boundaryNow);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].mens).toContain("04031");
+  });
+
+  it("drops SYNOP messages older than the 24h publication window", () => {
+    const prev = [
+      {
+        mens: "AAXX 03031 82015 41480",
+        validade_inicial: "2026-09-03 03:00:00",
+      },
+    ];
+    const boundaryNow = new Date("2026-09-05T05:59:00Z");
+    const merged = mergeSynopHistoryItems(prev, [], boundaryNow);
+    expect(merged).toHaveLength(0);
+  });
+
+  it("does not clear the history when the upstream omits already loaded messages", () => {
+    const prev = [
+      {
+        mens: "METAR SBMQ 050800Z 05009KT CAVOK",
+        recebimento: "2026-09-05 08:05:00",
+        validade_inicial: "2026-09-05 08:00:00",
+      },
+      {
+        mens: "METAR SBMQ 051000Z 05009KT CAVOK",
+        recebimento: "2026-09-05 10:05:00",
+        validade_inicial: "2026-09-05 10:00:00",
+      },
+    ];
+    const merged = mergeMetarHistoryItems(prev, [{ mens: prev[0].mens, recebimento: prev[0].recebimento, validade_inicial: prev[0].validade_inicial }], nowUtc);
+    expect(merged).toHaveLength(2);
+  });
+});
+
+describe("AD WRNG validity helpers", () => {
+  const nowUtc = new Date("2026-09-05T12:00:00Z");
+
+  it("keeps an AD WRNG active while the validity window is open", () => {
+    const warning = "SBEG SBSN SBBE AD WRNG 1 VALID 051000/051400";
+    expect(isAdWarningValidityExpired(warning, nowUtc)).toBe(false);
+  });
+
+  it("marks an AD WRNG as expired after the valid-until timestamp", () => {
+    const warning = "SBEG SBSN SBBE AD WRNG 1 VALID 051000/051150";
+    expect(isAdWarningValidityExpired(warning, nowUtc)).toBe(true);
+  });
+
+  it("marks an AD WRNG as expired before its validity starts", () => {
+    const warning = "SBEG SBSN SBBE AD WRNG 1 VALID 051500/051900";
+    expect(isAdWarningValidityExpired(warning, nowUtc)).toBe(true);
+  });
+
+  it("keeps an AD WRNG active when it has no explicit VALID window", () => {
+    expect(isAdWarningValidityExpired("SBEG AD WRNG 2", nowUtc)).toBe(false);
+    expect(isAdWarningValidityExpired("", nowUtc)).toBe(false);
+  });
+
+  it("expires an AD WRNG exactly at the end of its validity", () => {
+    const warning = "SBEG SBSN SBBE AD WRNG 1 VALID 051000/051200";
+    expect(isAdWarningValidityExpired(warning, nowUtc)).toBe(true);
   });
 });

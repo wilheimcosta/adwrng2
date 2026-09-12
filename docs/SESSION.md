@@ -1,6 +1,6 @@
 # SESSION — Estado do projeto AD WRNG Monitor
 
-> Data: 2026-09-09 · Branch atual: `main` · Commit: `5d6cce4` · Produção: https://wilheim.vercel.app (200 OK)
+> Data: 2026-09-12 · Branch atual: `agent/history-redemet-down` · Commit: `b97773a` · PR #17 (OPEN) · Produção: https://wilheim.vercel.app (200 OK, ainda em `main`/`5d6cce4`)
 
 Gerenciador de pacotes em uso: **npm** (há `pnpm-lock.yaml` e `package-lock.json` — ver Problemas conhecidos).
 
@@ -13,7 +13,8 @@ Gerenciador de pacotes em uso: **npm** (há `pnpm-lock.yaml` e `package-lock.jso
 - painel History (últimas 24h) espelhando METAR e SYNOP;
 - alerta de atraso de publicação (watch) em overlay de tela cheia com som;
 - alarme de AD WRNG ativo com silêncio/reconhecimento;
-- fallback METAR e TAF via **AVIATIONWEATHER** (aviationweather.gov) quando a REDEMET está fora do ar.
+- fallback METAR e TAF via **AVIATIONWEATHER** (aviationweather.gov) quando a REDEMET está fora do ar — inclusive o History (24h via endpoint raw-text);
+- seleção automática de fonte: REDEMET é a fonte primária; quando offline, a AVIATIONWEATHER alimenta METAR/TAF atuais, flight rule e History.
 
 Stack: React + TypeScript + Vite + shadcn/ui + Tailwind + TanStack Query + React Router. Deploy: Vercel (serverless functions em `api/`).
 
@@ -21,86 +22,86 @@ Stack: React + TypeScript + Vite + shadcn/ui + Tailwind + TanStack Query + React
 
 ## 2. O QUE FOI IMPLEMENTADO (sessão atual)
 
-### 2.1 Histórico de commits em `main` (sessão mais recente)
-- `5b26425` — Merge PR #12: Histórico SYNOP espelhando METAR.
-- `702daf6` — PR #13: banner de watch (METAR/SYNOP atrasado) com o mesmo visual do alerta AD WRNG (`SYNOP Not Updated`, badge `NOT UPDATED`/`DELAYED`, barra shimmer vermelha).
-- `aa527d4` — PR #14: overlay de tela cheia para o watch, com auto-dismiss quando o METAR/SYNOP é publicado; som (beep); botões `SILENCE` (volta ao dashboard) e `UPD` (pisca amarelo no painel METAR quando pendente).
-- `5d6cce4` — PR #16 (squash; absorveu o antigo PR #15): fallback AVIATIONWEATHER (METAR + TAF), pills de fonte no header, card CLOCK, áudio na sidebar.
+Branch `agent/history-redemet-down` — PR #17 (OPEN, base `main`). Commits da sessão:
 
-### 2.2 Funcionalidades entregues (na produção)
-1. **Fonte alternativa — AVIATIONWEATHER (METAR)**:
-   - `api/aviationweather.ts`: proxy de `https://aviationweather.gov/api/data/metar?ids={ICAO}&format=json`.
-   - Extrai `rawOb`, `receiptTime` (normalizado), `reportTime` via `fetchAviationWeatherMetar`.
-   - Fallback no painel METAR quando a REDEMET está indisponível/atrasada; merge no History com dedupe por texto.
-2. **Fonte alternativa — AVIATIONWEATHER (TAF)**:
-   - Mesmo endpoint com `resource=taf` → `https://aviationweather.gov/api/data/taf?ids={ICAO}&format=json`.
-   - Extrai o texto do campo `rawTAF` via `fetchAviationWeatherTaf`.
-   - Fallback no painel TAF quando a REDEMET não traz `TAF ... =`.
-3. **Pills de status por fonte** (header): `REDEMET` e `AVIATIONWEATHER` — verde LIVE / vermelho OFFLINE / amarelo SYNC.
-4. **Relógio UTC**: card dedicado na grid de stats (rótulo `CLOCK`), removido do header (evita duplicação).
-5. **Áudio**: controle movido para a sidebar (grupo `Alerts`; ícone Volume2/VolumeX + switch ON/OFF), estado compartilhado via `AudioProvider`.
-6. **Alerta de atraso (watch)**: overlay full-screen auto-dismiss com botão `SILENCE`; botão `UPD` no painel METAR (âmbar pulsante) que reabre o overlay quando o METAR está pendente.
+- `4487e99` — usar AVIATIONWEATHER como fonte primária quando a REDEMET está offline (`redemetOffline`), com `flightRule`/`reportLine`/`tafLine` preferindo a AVIATIONWEATHER nesse caso.
+- `7d983e6` — piscar apenas o pill da fonte primária ao vivo (removido o pill `PRIMARY`).
+- `1c23c18` — piscar a bolinha da fonte primária liga/desliga (`animate-blink`, keyframe `step-end` 1s) em vez de animação de ping.
+- `c6fba26` — a bolinha OFFLINE (vermelha) também pisca intermitentemente.
+- `a0e4d9b` — `api/aviationweather.ts` passa a suportar `format=raw` (`ids`, `format=raw`, `taf=true`, `hours`), retornando text/plain; History de 23h alimentado por esse endpoint raw quando a REDEMET está offline; `parseAviationWeatherRawText`/`fetchAviationWeatherRawText` em `src/lib/redemet.ts`.
+- `94bdc7c` — slots do History preservam mensagens METAR buscadas próximo à virada da hora (janela orientada por dados, além do relógio).
+- `e897da0` — slots orientados por dados cobrem **toda hora presente nos dados** (piso de 48h), garantindo que a última mensagem da sequência nunca perca o slot mesmo com defasagem de horas entre requisição e visualização.
+- `b97773a` — endpoint raw passa de `hours=23` para `hours=24`: intervalo exato de **24h** entre a mensagem METAR atual e a última da lista (verificado com `date=202609120800`: `120800Z` → `110800Z`).
+
+### 2.1 Estado do painel de fontes (head do PR #17)
+- Pill `REDEMET`: LIVE (verde) / OFFLINE (vermelha, pisca) / SYNC (âmbar, estática).
+- Pill `AVIATIONWEATHER`: LIVE (verde, pisca quando é a fonte primária) / OFFLINE (vermelha, pisca) / SYNC (âmbar, estática).
+- PRIMARY = `REDEMET` a menos que `redemetOffline` → `AVIATIONWEATHER`.
+
+### 2.2 Funcionalidades entregues nas sessões anteriores (já em `main`)
+1. **Fonte alternativa — AVIATIONWEATHER (METAR/TAF)** via `api/aviationweather.ts` (JSON) — PR #16 (`5d6cce4`).
+2. **Pills de status por fonte** no header; **relógio UTC** em card próprio; **áudio** na sidebar (`AudioProvider`).
+3. **Alerta de atraso (watch)** com overlay full-screen e **alarme AD WRNG**.
 
 ---
 
 ## 3. O QUE AINDA FALTA / EM ABERTO
 
-- **Sem pendências funcionais conhecidas** na produção.
+- **PR #17 não mergeado**: branch `agent/history-redemet-down` aguardando revisão/merge em `main` e re-deploy de produção (só com autorização explícita).
+- Feature branch de trabalho pode ser útil para futuras rodadas: `agent/history-redemet-down` (limpa e atualizada).
 - Melhorias possíveis (não autorizadas):
   - Indicar visualmente no painel TAF/METAR a origem da mensagem (REDEMET vs AVIATIONWEATHER).
-  - Pills de status separando também o estado do TAF (hoje o pill AVIATIONWEATHER reflete só o METAR).
-  - Aviso/silêncio de áudio persistido em `localStorage` (hoje o estado é reiniciado a cada reload).
+  - Pill AVIATIONWEATHER refletir também o estado do TAF (hoje só o METAR).
+  - Aviso/silêncio de áudio persistido em `localStorage`.
   - Botão/atualização manual (refetch) por fonte.
-  - Cobertura de testes para os componentes/sidebar (hoje os testes focam em `src/lib/redemet.ts`).
+  - Cobertura de testes para componentes/sidebar (hoje os testes focam em `src/lib/redemet.ts`).
 
 ---
 
-## 4. ARQUIVOS MODIFICADOS/CRIADOS
+## 4. ARQUIVOS MODIFICADOS/CRIADOS (sessão atual)
 
-### Sessão atual (consolidados em `5d6cce4`)
-- `api/aviationweather.ts` — **novo**: proxy METAR/TAF da AVIATIONWEATHER (`resource=taf` opcional).
-- `src/lib/redemet.ts` — `fetchAviationWeatherMetar`, `avWeatherItemToHistory`, `normalizeAvWeatherTimestamp`, `fetchAviationWeatherTaf`, `avWeatherTafToText`, além de helpers pré-existentes (`parseUtcDate`, `hasMetarForHour`, `hasSynopForHour`, `isMetarWatchMinute`, `metarHourKeyFromReportText`, `nextSynopticHourDate`, etc.).
-- `src/pages/Dashboard.tsx` — queries avweather (METAR+TAF), fallbacks, pills, card CLOCK, áudio via contexto, UPD/SILENCE, history mesclado.
-- `src/contexts/audio-context.tsx` — **novo**: `AudioProvider`/`useAudio`.
-- `src/App.tsx` — `AudioProvider` envolvendo as rotas.
-- `src/components/AppSidebar.tsx` — grupo `Alerts` (ícone + switch ON/OFF).
-- `src/test/example.test.ts` — 36 testes (helpers METAR/SYNOP/watch + avweather METAR/TAF).
+- `api/aviationweather.ts` — branch `format=raw`: raw-text upstream com `taf=true&hours=24&date=<UTC atual HHMM>`; responde `text/plain`.
+- `src/lib/redemet.ts` — `FlightRule` inclui `"MVFR"`; `mapFlightRuleFromAviationWeather`; `fetchAviationWeatherMetarRaw`; `parseAviationWeatherRawText` (METARs `DDHHMMZ`, virada de mês, bloco TAF separado) e `fetchAviationWeatherRawText`; merges de cache.
+- `src/pages/Dashboard.tsx` — `redemetOffline`; queries avweather JSON+raw; `avWeatherData` (merge raw + JSON, dedupe por `mens`); `currentAvWeatherFltCat`/`flightRule`; `reportLine`/`tafLine` preferindo AVIATIONWEATHER offline; `sourcePills` com blink; `historySlots` orientado por dados (48h pra trás / 2h adiante); `metarHourlyRows` (≈783) e render (≈1862).
+- `src/index.css` — `@keyframes blink` + `.animate-blink`.
+- `src/components/FlightRuleBadge.tsx` — caso MVFR.
+- `src/test/example.test.ts` — **56 testes** (inclui 3 de `mapFlightRuleFromAviationWeather`, 4 de `parseAviationWeatherRawText`).
 
-### Sessões anteriores (já em `main`)
-- `api/redemet.ts`, `api/aisweb.ts`, `api/stationinfo.ts`, `server/http.ts` — proxy REDEMET/AISWEB/stationinfo.
-- `src/components/DashboardHeader.tsx` — **código morto** (não utilizado; UTC clock duplicado chegou a existir aqui).
+Sessões anteriores (já em `main`): `api/redemet.ts`, `api/aisweb.ts`, `api/stationinfo.ts`, `server/http.ts`, `src/contexts/audio-context.tsx`, `src/components/AppSidebar.tsx`, `src/App.tsx`, `src/components/DashboardHeader.tsx` (código morto).
 
 ---
 
-## 5. DECISÕES TÉCNICAS
+## 5. DECISÕES TÉCNICAS (sessão atual)
 
-1. **Fallback duplo**: METAR e TAF da AVIATIONWEATHER usam o mesmo endpoint `api/aviationweather` com param `resource` (default `metar`; backward-compatible).
-2. **Normalização de timestamp**: `receiptTime` da AVIATIONWEATHER vem em ISO com `Z` (ex.: `2026-09-04T23:55:46.724Z`); `parseUtcDate` só aceita `YYYY-MM-DD HH:MM:SS`, então `normalizeAvWeatherTimestamp` converte antes de entrar no pipeline.
-3. **Dedupe no History**: merge METAR REDEMET + AVIATIONWEATHER por texto (`mens` via `Set`).
-4. **Watch/alarme 100% REDEMET**: a fonte AVIATIONWEATHER não participa da lógica de alerta (evita falso positivo de indisponibilidade).
-5. **Áudio compartilhado**: extraído para `AudioProvider` (contexto) para a sidebar operar o mesmo estado do dashboard; efeito central em `Dashboard` reproduz o beep ao ligar e `stopAlarm()` ao desligar, independente de onde o toggle ocorreu.
-6. **BRANCH/PRs**: PR #15 (aviationweather) foi incorporado ao PR #16 (que virou o PR único) e fechado como redundante.
-7. **Produção**: deploy via `vercel --prod` após validação do Preview; SSO protege as URLs de Preview (acesso anônimo → 302).
+1. **Fonte primária dinâmica**: PRIMARY = REDEMET; ao detectar REDEMET offline (`Boolean(error)` da status query), AVIATIONWEATHER passa a ser a fonte de METAR/TAF atuais, flight rule e History.
+2. **History offline via raw**: `parseAviationWeatherRawText` lê as linhas `METAR <ICAO> DDHHMMZ` + bloco `TAF` e converte para `MetarHistoryItem[]`, com validação de virada de mês (`resolveDayHourMinuteWithReference`); dedupe por `mens` com o JSON normalizado.
+3. **Janela de 24h**: `hours=24` no upstream garante intervalo de 24h entre a mensagem atual e a última da lista (`120800Z` → `110800Z`).
+4. **Slots orientados por dados**: o History garante uma lacuna de slot para cada hora presente nos dados (METAR cache + avweather), com piso de 48h para proteger a intenção de "últimas 24h" contra dados stale prolongados — a última mensagem da sequência nunca é ocultada.
+5. **Simulação de offline**: short-circuit TEMPORÁRIO em `api/redemet.ts` (503) apenas para o deploy do Preview de validação; sempre revertido via `git checkout` e nunca commitado.
+6. **Watch/alarme 100% REDEMET**: a fonte AVIATIONWEATHER não participa da lógica de alerta (evita falso positivo de indisponibilidade).
+7. **Verificações**: `npm run typecheck`, `npm run lint`, `npm run test` (56), `npm run build` e typecheck separado dos endpoints (`npx tsc --noEmit ... api/*.ts server/http.ts`) — todos PASS.
 
 ---
 
 ## 6. PROBLEMAS CONHECIDOS
 
+- **PR #17 pendente de merge/deploy de produção** (a produção continua na `main`/`5d6cce4`).
 - **Dois lockfiles**: `package-lock.json` e `pnpm-lock.yaml` coexistem. Não remover automaticamente; alinhar com o usuário qual gerenciador oficial usar.
 - **`DashboardHeader.tsx` órfão**: contém um relógio UTC + sino não utilizados; candidato a remoção (depende de autorização).
 - **Estados efêmeros**: `audioEnabled` e `watchSilenced` não persistem entre reloads (comportamento atual).
 - **Cold start do upstream**: primeira chamada às APIs na Vercel pode devolver 504; retry subsequente é ~200ms (verificado em produção).
 - **Preview SSO**: URLs de preview exigem autenticação; `curl` anônimo retorna 302 (esperado).
+- **Dados da AVIATIONWEATHER na simulação**: snapshot congelado em 2026-09-12/13 (ambiente de teste); o clock real do navegador pode divergir alguns minutos da janela dos dados — o slot orientado por dados absorve essa defasagem.
 - **Branches remotas locais não apagadas**: várias `agent/*` e `codex/*` ainda existem em `origin` (algumas já mergeadas) — limpeza depende de autorização.
 
 ---
 
 ## 7. PRÓXIMOS PASSOS
 
-1. Validar em produção o TAF fallback (simular REDEMET fora do ar).
+1. Revisar e mergear o **PR #17** em `main` (com autorização); depois validar/deployar produção.
 2. (Opcional) Persistir preferências (`audioEnabled`, `watchSilenced`) em `localStorage`.
 3. (Opcional) Exibir origem da mensagem (REDEMET/AVIATIONWEATHER) no painel TAF.
-4. Limpeza: remover `DashboardHeader.tsx` órfão e branches remotos mergeados (com autorização).
+4. Limpeza: remover `DashboardHeader.tsx` órfão e branches remotas mergeadas (com autorização).
 5. Alinhar gerenciador de pacotes (remover lockfile redundante) — só com autorização.
 
 ---
@@ -111,7 +112,7 @@ Stack: React + TypeScript + Vite + shadcn/ui + Tailwind + TanStack Query + React
 # Estado / inspeção
 git status
 git branch --show-current
-git log --oneline -8
+git log --oneline -12
 git diff
 
 # Instalar dependências (npm)
@@ -121,7 +122,7 @@ npm install
 npm run dev
 
 # Verificações (local)
-npm run test            # 36 testes (vitest run)
+npm run test            # 56 testes (vitest run)
 npm run typecheck       # tsc --noEmit -p tsconfig.app.json
 npm run lint            # eslint .
 npm run build           # typecheck + vite build
@@ -135,7 +136,7 @@ VERCEL_ORG_ID=team_wfdJap8k6L0yJ1PekDrbZTrg \
 VERCEL_PROJECT_ID=prj_niKvjopOieCyLHwwhi5MMmWrAw3g \
 npx vercel --yes
 
-# Deploy Produção
+# Deploy Produção (somente com autorização explícita)
 VERCEL_ORG_ID=team_wfdJap8k6L0yJ1PekDrbZTrg \
 VERCEL_PROJECT_ID=prj_niKvjopOieCyLHwwhi5MMmWrAw3g \
 npx vercel --prod --yes
@@ -143,15 +144,16 @@ npx vercel --prod --yes
 # Validação pós-deploy
 curl -s -o /dev/null -w "%{http_code}\n" https://wilheim.vercel.app
 curl -s "https://wilheim.vercel.app/api/aviationweather?ids=SBMQ"
-curl -s "https://wilheim.vercel.app/api/aviationweather?ids=SBMQ&resource=taf"
+curl -s "https://wilheim.vercel.app/api/aviationweather?ids=SBMQ&format=raw"
 curl -s "https://wilheim.vercel.app/api/redemet?resource=metar&icao=SBMQ"
 curl -s "https://wilheim.vercel.app/api/redemet?resource=synop&wmo=82099"
 
 # PRs (GitHub CLI)
-gh pr create --base main --head <branch> --title "..." --body "..."
-gh pr view 16
-gh pr merge 16 --squash --delete-branch
+gh pr view 17
+gh pr checkout 17
 ```
+
+Previews de validação (simulação offline) desta sessão: `adwrng2-i668pv00b-*` (slot coverage), `adwrng2-ag1ud9oeq-*` (hours=24, head `b97773a`).
 
 ---
 
@@ -162,3 +164,4 @@ gh pr merge 16 --squash --delete-branch
 - Não executar operações destrutivas (`git reset --hard`, `--force`, `vercel rm`) sem autorização explícita.
 - Código científico/notebooks prioriza o runtime **Google Colab** via `colab exec` (não usar runtime local).
 - Nunca inventar resultados: toda validação é executada e verificada antes do relatório.
+- Ao encerrar sessão: atualizar este arquivo e commitar `Update development session state`.

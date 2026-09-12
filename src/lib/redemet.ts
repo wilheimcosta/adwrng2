@@ -289,10 +289,21 @@ export function determineAlertSeverity(alert: RedemetAlert): "low" | "medium" | 
   return message.includes("caution") || message.includes("warning") || message.includes("aviso") ? "medium" : "low";
 }
 
-export type FlightRule = "VFR" | "IFR" | "LIFR";
+export type FlightRule = "VFR" | "MVFR" | "IFR" | "LIFR";
 export function mapFlightRuleFromFlag(flag: unknown): FlightRule | null {
   const f = String(flag ?? "").toLowerCase();
   return f === "g" ? "VFR" : f === "y" ? "IFR" : f === "r" ? "LIFR" : null;
+}
+
+export function mapFlightRuleFromAviationWeather(fltCat: unknown): FlightRule | null {
+  const normalized = String(fltCat ?? "").toUpperCase().trim();
+  const byName: Record<string, FlightRule> = {
+    VFR: "VFR",
+    MVFR: "MVFR",
+    IFR: "IFR",
+    LIFR: "LIFR",
+  };
+  return byName[normalized] ?? null;
 }
 
 export async function fetchAerodromeStatusDetails(icao: string): Promise<AerodromeStatusDetails> {
@@ -472,8 +483,8 @@ export function avWeatherItemToHistory(item: unknown): MetarHistoryItem | null {
   };
 }
 
-export async function fetchAviationWeatherMetar(icao: string): Promise<{
-  data: MetarHistoryItem[];
+export async function fetchAviationWeatherMetarRaw(icao: string): Promise<{
+  data: AviationWeatherMetarItem[];
   error?: string;
 }> {
   const station = String(icao ?? "").toUpperCase().trim();
@@ -487,19 +498,92 @@ export async function fetchAviationWeatherMetar(icao: string): Promise<{
     }
     const payload: unknown = await response.json();
     const rows = Array.isArray(payload) ? payload.filter(isRecord) : [];
-    const data = rows
-      .map(avWeatherItemToHistory)
-      .filter((item): item is MetarHistoryItem => item !== null);
-    return { data };
+    return { data: rows as AviationWeatherMetarItem[] };
   } catch (error) {
     return { data: [], error: formatNetworkError(error, "Falha ao consultar METAR na AVIATIONWEATHER.") };
   }
+}
+
+export async function fetchAviationWeatherMetar(icao: string): Promise<{
+  data: MetarHistoryItem[];
+  error?: string;
+}> {
+  const raw = await fetchAviationWeatherMetarRaw(icao);
+  if (raw.error) return { data: [], error: raw.error };
+  const data = raw.data
+    .map(avWeatherItemToHistory)
+    .filter((item): item is MetarHistoryItem => item !== null);
+  return { data };
 }
 
 export function avWeatherTafToText(item: unknown): string | null {
   if (!isRecord(item)) return null;
   const raw = String(item.rawTAF ?? "").trim();
   return raw || null;
+}
+
+function formatAvWeatherUtcTimestamp(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+}
+
+export function parseAviationWeatherRawText(
+  text: string,
+  reference: Date = new Date(),
+): { metars: MetarHistoryItem[]; taf: string } {
+  const metars: MetarHistoryItem[] = [];
+  const lines = String(text ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const tafStart = lines.findIndex((line) => /^TAF\s+[A-Z0-9]{4}\b/i.test(line));
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (tafStart !== -1 && i >= tafStart) {
+      break;
+    }
+    if (!/^METAR\s+[A-Z0-9]{4}\b/i.test(line)) continue;
+    const match = line.toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
+    if (!match) continue;
+    const day = Number(match[1]);
+    const hour = Number(match[2]);
+    const minute = Number(match[3]);
+    if ([day, hour, minute].some((value) => Number.isNaN(value))) continue;
+    const nominal = resolveDayHourMinuteWithReference(day, hour, minute, reference);
+    const stamp = formatAvWeatherUtcTimestamp(nominal);
+    metars.push({ mens: line, recebimento: stamp, validade_inicial: stamp });
+  }
+  const taf = tafStart === -1 ? "" : lines.slice(tafStart).join("\n");
+  return { metars, taf };
+}
+
+export type AviationWeatherRawHistory = {
+  text: string;
+  metars: MetarHistoryItem[];
+  taf: string;
+  error?: string;
+};
+
+export async function fetchAviationWeatherRawText(
+  icao: string,
+  reference: Date = new Date(),
+): Promise<AviationWeatherRawHistory> {
+  const station = String(icao ?? "").toUpperCase().trim();
+  if (!/^[A-Z]{4}$/.test(station)) {
+    return { text: "", metars: [], taf: "", error: "ICAO inválido para consulta METAR." };
+  }
+  try {
+    const response = await fetch(`/api/aviationweather?ids=${encodeURIComponent(station)}&format=raw`, {
+      headers: { Accept: "text/plain" },
+    });
+    if (!response.ok) {
+      return { text: "", metars: [], taf: "", error: await responseError(response, `AVIATIONWEATHER retornou ${response.status} para METAR.`) };
+    }
+    const text = await response.text();
+    return { text, ...parseAviationWeatherRawText(text, reference) };
+  } catch (error) {
+    return { text: "", metars: [], taf: "", error: formatNetworkError(error, "Falha ao consultar METAR na AVIATIONWEATHER.") };
+  }
 }
 
 export async function fetchAviationWeatherTaf(icao: string): Promise<{
@@ -545,6 +629,73 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
   } catch (error) {
     return { data: [], error: formatNetworkError(error, "Falha ao consultar histórico SYNOP.") };
   }
+}
+
+const METAR_HISTORY_WINDOW_MS = 25 * 60 * 60 * 1000;
+const SYNOP_HISTORY_WINDOW_MS = 28 * 60 * 60 * 1000;
+
+function historyItemTimestamp(item: {
+  mens: string;
+  recebimento?: string;
+  validade_inicial: string;
+}): number {
+  const parsed = parseUtcDate(item.recebimento ?? "") ?? parseUtcDate(item.validade_inicial);
+  return parsed ? parsed.getTime() : Number.POSITIVE_INFINITY;
+}
+
+function mergeHistoryItems<T extends { mens: string; validade_inicial: string } & { recebimento?: string }>(
+  prev: T[],
+  incoming: T[],
+  nowUtc: Date,
+  windowMs: number,
+): T[] {
+  const cutoff = nowUtc.getTime() - windowMs;
+  const merged: T[] = [];
+  const seen = new Set<string>();
+  for (const item of [...prev, ...incoming]) {
+    const key = String(item.mens ?? "").trim();
+    if (!key || seen.has(key)) continue;
+    const ts = historyItemTimestamp(item);
+    if (Number.isFinite(ts) && ts < cutoff) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+  return merged.sort((a, b) => historyItemTimestamp(b) - historyItemTimestamp(a));
+}
+
+export function mergeMetarHistoryItems(
+  prev: MetarHistoryItem[],
+  incoming: MetarHistoryItem[],
+  nowUtc: Date = new Date(),
+): MetarHistoryItem[] {
+  return mergeHistoryItems(prev, incoming, nowUtc, METAR_HISTORY_WINDOW_MS);
+}
+
+export function mergeSynopHistoryItems(
+  prev: SynopHistoryItem[],
+  incoming: SynopHistoryItem[],
+  nowUtc: Date = new Date(),
+): SynopHistoryItem[] {
+  return mergeHistoryItems(prev, incoming, nowUtc, SYNOP_HISTORY_WINDOW_MS);
+}
+
+export function isAdWarningValidityExpired(text: string, reference: Date = new Date()): boolean {
+  const upper = String(text ?? "").toUpperCase();
+  const validityMatch = upper.match(/\bVALID\s+(\d{2})(\d{2})(\d{2})\/(\d{2})(\d{2})(\d{2})\b/);
+  if (!validityMatch) return false;
+  const startsAt = resolveUtcDate(
+    Number(validityMatch[1]),
+    Number(validityMatch[2]),
+    Number(validityMatch[3]),
+    reference,
+  );
+  const endsAt = resolveUtcDate(
+    Number(validityMatch[4]),
+    Number(validityMatch[5]),
+    Number(validityMatch[6]),
+    startsAt,
+  );
+  return reference.getTime() < startsAt.getTime() || reference.getTime() >= endsAt.getTime();
 }
 
 export function parseUtcDate(dateTime: string): Date | null {

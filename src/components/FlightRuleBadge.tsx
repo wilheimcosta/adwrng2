@@ -13,6 +13,8 @@ function badgeClassForRule(rule: FlightRule) {
   switch (rule) {
     case "VFR":
       return "bg-accent/20 text-accent border-accent/50";
+    case "MVFR":
+      return "bg-sky-500/20 text-sky-400 border-sky-500/50";
     case "IFR":
       return "bg-destructive/20 text-destructive border-destructive/50";
     case "LIFR":
