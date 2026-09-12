@@ -1324,9 +1324,10 @@ export default function Dashboard() {
   const avWeatherStatus: "offline" | "sync" | "live" =
     avWeatherError ? "offline" : isFetchingAvWeather ? "sync" : "live";
 
+  const primarySource: "REDEMET" | "AVIATIONWEATHER" = redemetOffline ? "AVIATIONWEATHER" : "REDEMET";
+
   const sourcePills: { label: string; state: "offline" | "sync" | "live" }[] =
     [
-      { label: `PRIMARY: ${redemetOffline ? "AVIATIONWEATHER" : "REDEMET"}`, state: redemetStatus },
       { label: "REDEMET", state: redemetStatus },
       { label: "AVIATIONWEATHER", state: avWeatherStatus },
     ];
@@ -1371,6 +1372,7 @@ export default function Dashboard() {
           {sourcePills.map((pill) => {
             const isOffline = pill.state === "offline";
             const isSync = pill.state === "sync";
+            const isPrimary = pill.label === primarySource;
             return (
               <div
                 key={pill.label}
@@ -1388,7 +1390,7 @@ export default function Dashboard() {
                       isOffline ? "bg-red-400" : isSync ? "bg-amber-400" : "bg-emerald-400"
                     }`}
                   />
-                  {!isOffline && !isSync && (
+                  {!isOffline && !isSync && isPrimary && (
                     <div className="absolute w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping opacity-40" />
                   )}
                 </div>
