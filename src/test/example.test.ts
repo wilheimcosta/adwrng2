@@ -9,6 +9,7 @@ import {
   isMetarWatchMinute,
   isPendingAlertStale,
   isSynopticPublicationHour,
+  mapFlightRuleFromAviationWeather,
   mapFlightRuleFromFlag,
   mergeMetarHistoryItems,
   mergeSynopHistoryItems,
@@ -37,6 +38,27 @@ describe("REDEMET helpers", () => {
     expect(mapFlightRuleFromFlag("")).toBeNull();
     expect(mapFlightRuleFromFlag(0)).toBeNull();
     expect(mapFlightRuleFromFlag("VFR")).toBeNull();
+  });
+
+  it("maps AVIATIONWEATHER fltCat values to flight rules", () => {
+    expect(mapFlightRuleFromAviationWeather("VFR")).toBe("VFR");
+    expect(mapFlightRuleFromAviationWeather("MVFR")).toBe("MVFR");
+    expect(mapFlightRuleFromAviationWeather("IFR")).toBe("IFR");
+    expect(mapFlightRuleFromAviationWeather("LIFR")).toBe("LIFR");
+  });
+
+  it("maps AVIATIONWEATHER fltCat case-insensitively and trims whitespace", () => {
+    expect(mapFlightRuleFromAviationWeather("  vfr ")).toBe("VFR");
+    expect(mapFlightRuleFromAviationWeather("mvfr")).toBe("MVFR");
+    expect(mapFlightRuleFromAviationWeather("IFR")).toBe("IFR");
+  });
+
+  it("returns null for missing or invalid AVIATIONWEATHER fltCat values", () => {
+    expect(mapFlightRuleFromAviationWeather(null)).toBeNull();
+    expect(mapFlightRuleFromAviationWeather(undefined)).toBeNull();
+    expect(mapFlightRuleFromAviationWeather("")).toBeNull();
+    expect(mapFlightRuleFromAviationWeather("UNKNOWN")).toBeNull();
+    expect(mapFlightRuleFromAviationWeather(3)).toBeNull();
   });
 
   it("extracts only aerodromes from the warning header", () => {

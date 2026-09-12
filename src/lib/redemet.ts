@@ -289,10 +289,21 @@ export function determineAlertSeverity(alert: RedemetAlert): "low" | "medium" | 
   return message.includes("caution") || message.includes("warning") || message.includes("aviso") ? "medium" : "low";
 }
 
-export type FlightRule = "VFR" | "IFR" | "LIFR";
+export type FlightRule = "VFR" | "MVFR" | "IFR" | "LIFR";
 export function mapFlightRuleFromFlag(flag: unknown): FlightRule | null {
   const f = String(flag ?? "").toLowerCase();
   return f === "g" ? "VFR" : f === "y" ? "IFR" : f === "r" ? "LIFR" : null;
+}
+
+export function mapFlightRuleFromAviationWeather(fltCat: unknown): FlightRule | null {
+  const normalized = String(fltCat ?? "").toUpperCase().trim();
+  const byName: Record<string, FlightRule> = {
+    VFR: "VFR",
+    MVFR: "MVFR",
+    IFR: "IFR",
+    LIFR: "LIFR",
+  };
+  return byName[normalized] ?? null;
 }
 
 export async function fetchAerodromeStatusDetails(icao: string): Promise<AerodromeStatusDetails> {
@@ -472,8 +483,8 @@ export function avWeatherItemToHistory(item: unknown): MetarHistoryItem | null {
   };
 }
 
-export async function fetchAviationWeatherMetar(icao: string): Promise<{
-  data: MetarHistoryItem[];
+export async function fetchAviationWeatherMetarRaw(icao: string): Promise<{
+  data: AviationWeatherMetarItem[];
   error?: string;
 }> {
   const station = String(icao ?? "").toUpperCase().trim();
@@ -487,13 +498,22 @@ export async function fetchAviationWeatherMetar(icao: string): Promise<{
     }
     const payload: unknown = await response.json();
     const rows = Array.isArray(payload) ? payload.filter(isRecord) : [];
-    const data = rows
-      .map(avWeatherItemToHistory)
-      .filter((item): item is MetarHistoryItem => item !== null);
-    return { data };
+    return { data: rows as AviationWeatherMetarItem[] };
   } catch (error) {
     return { data: [], error: formatNetworkError(error, "Falha ao consultar METAR na AVIATIONWEATHER.") };
   }
+}
+
+export async function fetchAviationWeatherMetar(icao: string): Promise<{
+  data: MetarHistoryItem[];
+  error?: string;
+}> {
+  const raw = await fetchAviationWeatherMetarRaw(icao);
+  if (raw.error) return { data: [], error: raw.error };
+  const data = raw.data
+    .map(avWeatherItemToHistory)
+    .filter((item): item is MetarHistoryItem => item !== null);
+  return { data };
 }
 
 export function avWeatherTafToText(item: unknown): string | null {

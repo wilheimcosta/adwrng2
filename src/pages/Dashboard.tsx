@@ -17,10 +17,11 @@ import { useAudio } from "@/contexts/audio-context";
 import { useIcao } from "@/contexts/icao-context";
 import { useLocation } from "react-router-dom";
 import {
+  avWeatherItemToHistory,
   extractIcaosFromAdWarning,
   fetchAerodromeStatusDetails,
   fetchAiswebAerodromes,
-  fetchAviationWeatherMetar,
+  fetchAviationWeatherMetarRaw,
   fetchAviationWeatherTaf,
   fetchMetarHistory24h,
   fetchSynopHistory24h,
@@ -30,6 +31,7 @@ import {
   isAdWarningValidityExpired,
   isMetarWatchMinute,
   isPendingAlertStale,
+  mapFlightRuleFromAviationWeather,
   mapFlightRuleFromFlag,
   mergeMetarHistoryItems,
   mergeSynopHistoryItems,
@@ -150,7 +152,7 @@ function translateUnavailableMessage(text: string, type: "METAR" | "TAF"): strin
   return `${type} not available for ${match[1].toUpperCase()}`;
 }
 
-function flightRuleConfig(rule: "VFR" | "IFR" | "LIFR") {
+function flightRuleConfig(rule: "VFR" | "MVFR" | "IFR" | "LIFR") {
   if (rule === "VFR")
     return {
       bg: "bg-emerald-500/10",
@@ -159,6 +161,15 @@ function flightRuleConfig(rule: "VFR" | "IFR" | "LIFR") {
       dot: "bg-emerald-400",
       glow: "shadow-[0_0_16px_hsl(160_85%_45%/0.15)]",
       label: "VFR",
+    };
+  if (rule === "MVFR")
+    return {
+      bg: "bg-sky-500/10",
+      text: "text-sky-400",
+      border: "border-sky-500/25",
+      dot: "bg-sky-400",
+      glow: "shadow-[0_0_16px_hsl(199_89%_48%/0.15)]",
+      label: "MVFR",
     };
   if (rule === "IFR")
     return {
@@ -353,7 +364,7 @@ export default function Dashboard() {
     enabled: /^[A-Z]{4}$/.test(icao),
   });
 
-  const flightRule = mapFlightRuleFromFlag(statusData?.flag ?? null);
+  const redemetOffline = Boolean(error);
   const warningExpired = useMemo(
     () => isAdWarningValidityExpired(statusData?.warningText ?? "", utcNow),
     [statusData?.warningText, utcNow],
@@ -462,14 +473,14 @@ export default function Dashboard() {
   }, [isHistoryView, refetchMetarHistory, refetchSynopHistory]);
 
   const {
-    data: avWeatherData,
+    data: avWeatherRawData,
     isFetching: isFetchingAvWeather,
     error: avWeatherError,
     dataUpdatedAt: avWeatherDataUpdatedAt,
   } = useQuery({
     queryKey: ["avweather-metar-24h", icao],
     queryFn: async () => {
-      const res = await fetchAviationWeatherMetar(icao);
+      const res = await fetchAviationWeatherMetarRaw(icao);
       if (res.error) throw new Error(res.error);
       return res.data;
     },
@@ -478,6 +489,33 @@ export default function Dashboard() {
     refetchInterval: 30_000,
     refetchIntervalInBackground: true,
   });
+
+  const avWeatherData = useMemo(
+    () =>
+      (avWeatherRawData ?? [])
+        .map(avWeatherItemToHistory)
+        .filter((item): item is MetarHistoryItem => item !== null),
+    [avWeatherRawData],
+  );
+
+  const currentAvWeatherFltCat = useMemo(() => {
+    let best: { time: number; fltCat: unknown } | null = null;
+    for (const item of avWeatherRawData ?? []) {
+      const time =
+        parseUtcDate(String(item.receiptTime ?? ""))?.getTime() ??
+        (typeof item.obsTime === "number" ? item.obsTime * 1000 : Number.NaN);
+      if (!Number.isFinite(time)) continue;
+      if (!best || time > best.time) {
+        best = { time, fltCat: item.fltCat };
+      }
+    }
+    return best ? best.fltCat : null;
+  }, [avWeatherRawData]);
+
+  const flightRule = useMemo(() => {
+    if (redemetOffline) return mapFlightRuleFromAviationWeather(currentAvWeatherFltCat);
+    return mapFlightRuleFromFlag(statusData?.flag ?? null);
+  }, [redemetOffline, statusData?.flag, currentAvWeatherFltCat]);
 
   const {
     data: avWeatherTafData,
@@ -501,6 +539,10 @@ export default function Dashboard() {
   );
 
   const tafLine = useMemo(() => {
+    if (redemetOffline) {
+      if (latestAvWeatherTaf) return latestAvWeatherTaf;
+      return `TAF not available for ${icao.toUpperCase()}`;
+    }
     const report = statusData?.reportText ?? "";
     const translatedUnavailable = translateUnavailableMessage(report, "TAF");
     if (translatedUnavailable) return translatedUnavailable;
@@ -510,7 +552,7 @@ export default function Dashboard() {
     if (fullMatch) return fullMatch[0].trim();
     if (latestAvWeatherTaf) return latestAvWeatherTaf;
     return `TAF not available for ${icao.toUpperCase()}`;
-  }, [statusData?.reportText, latestAvWeatherTaf, icao]);
+  }, [redemetOffline, statusData?.reportText, latestAvWeatherTaf, icao]);
 
   const latestMetarMessage = useMemo(() => {
     let best: { nominal: Date; mens: string } | null = null;
@@ -539,6 +581,10 @@ export default function Dashboard() {
   }, [avWeatherData]);
 
   const reportLine = useMemo(() => {
+    if (redemetOffline) {
+      if (latestAvWeatherMessage) return latestAvWeatherMessage.mens;
+      return `METAR not available for ${icao.toUpperCase()}`;
+    }
     const report = statusData?.reportText ?? "";
     const lines = report
       .split(/\r?\n/)
@@ -575,7 +621,7 @@ export default function Dashboard() {
       return latestAvWeatherMessage.mens;
     }
     return translateUnavailableMessage(report, "METAR") ?? statusLine;
-  }, [statusData?.reportText, latestMetarMessage, latestAvWeatherMessage]);
+  }, [redemetOffline, statusData?.reportText, latestMetarMessage, latestAvWeatherMessage, icao]);
 
   const isMetarDelayed = useMemo(() => {
     const reportKey = reportLine ? metarHourKeyFromReportText(reportLine, utcNow) : null;
@@ -1280,6 +1326,7 @@ export default function Dashboard() {
 
   const sourcePills: { label: string; state: "offline" | "sync" | "live" }[] =
     [
+      { label: `PRIMARY: ${redemetOffline ? "AVIATIONWEATHER" : "REDEMET"}`, state: redemetStatus },
       { label: "REDEMET", state: redemetStatus },
       { label: "AVIATIONWEATHER", state: avWeatherStatus },
     ];
