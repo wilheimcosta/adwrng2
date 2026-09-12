@@ -547,6 +547,9 @@ export async function fetchSynopHistory24h(icao: string): Promise<{ data: SynopH
   }
 }
 
+const METAR_HISTORY_WINDOW_MS = 25 * 60 * 60 * 1000;
+const SYNOP_HISTORY_WINDOW_MS = 28 * 60 * 60 * 1000;
+
 function historyItemTimestamp(item: {
   mens: string;
   recebimento?: string;
@@ -560,8 +563,9 @@ function mergeHistoryItems<T extends { mens: string; validade_inicial: string } 
   prev: T[],
   incoming: T[],
   nowUtc: Date,
+  windowMs: number,
 ): T[] {
-  const cutoff = nowUtc.getTime() - 25 * 60 * 60 * 1000;
+  const cutoff = nowUtc.getTime() - windowMs;
   const merged: T[] = [];
   const seen = new Set<string>();
   for (const item of [...prev, ...incoming]) {
@@ -580,7 +584,7 @@ export function mergeMetarHistoryItems(
   incoming: MetarHistoryItem[],
   nowUtc: Date = new Date(),
 ): MetarHistoryItem[] {
-  return mergeHistoryItems(prev, incoming, nowUtc);
+  return mergeHistoryItems(prev, incoming, nowUtc, METAR_HISTORY_WINDOW_MS);
 }
 
 export function mergeSynopHistoryItems(
@@ -588,7 +592,7 @@ export function mergeSynopHistoryItems(
   incoming: SynopHistoryItem[],
   nowUtc: Date = new Date(),
 ): SynopHistoryItem[] {
-  return mergeHistoryItems(prev, incoming, nowUtc);
+  return mergeHistoryItems(prev, incoming, nowUtc, SYNOP_HISTORY_WINDOW_MS);
 }
 
 export function isAdWarningValidityExpired(text: string, reference: Date = new Date()): boolean {

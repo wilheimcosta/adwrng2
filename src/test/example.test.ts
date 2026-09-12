@@ -384,6 +384,31 @@ describe("history resilience helpers", () => {
     expect(merged[0].mens).toContain("05121");
   });
 
+  it("keeps the oldest SYNOP message at the 24h publication boundary even ~27h after nowUtc", () => {
+    const prev = [
+      {
+        mens: "AAXX 04031 82015 41480",
+        validade_inicial: "2026-09-04 03:00:00",
+      },
+    ];
+    const boundaryNow = new Date("2026-09-05T05:59:00Z");
+    const merged = mergeSynopHistoryItems(prev, [], boundaryNow);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].mens).toContain("04031");
+  });
+
+  it("drops SYNOP messages older than the 24h publication window", () => {
+    const prev = [
+      {
+        mens: "AAXX 03031 82015 41480",
+        validade_inicial: "2026-09-03 03:00:00",
+      },
+    ];
+    const boundaryNow = new Date("2026-09-05T05:59:00Z");
+    const merged = mergeSynopHistoryItems(prev, [], boundaryNow);
+    expect(merged).toHaveLength(0);
+  });
+
   it("does not clear the history when the upstream omits already loaded messages", () => {
     const prev = [
       {
