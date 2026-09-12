@@ -11,7 +11,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const pad = (n: number) => String(n).padStart(2, "0");
       const date = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}`;
       const upstream = await fetchWithTimeout(
-        `https://aviationweather.gov/api/data/metar?ids=${encodeURIComponent(icao)}&format=raw&taf=true&hours=23&date=${date}`,
+        `https://aviationweather.gov/api/data/metar?ids=${encodeURIComponent(icao)}&format=raw&taf=true&hours=24&date=${date}`,
         { headers: { Accept: "text/plain" } },
         10_000,
       );
